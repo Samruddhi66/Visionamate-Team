@@ -36,7 +36,32 @@ class DetectedObject {
     required this.position,
   });
 
-  String toSpokenPhrase() => '$label ${position.spokenText}';
+  String toSpokenPhrase([String lang = 'en']) {
+    if (lang == 'mr') {
+      switch (position) {
+        case RelativePosition.left:
+          return '$label डाव्या बाजूला';
+        case RelativePosition.centerAhead:
+          return '$label थेट समोर';
+        case RelativePosition.right:
+          return '$label उजव्या बाजूला';
+        case RelativePosition.unknown:
+          return '$label समोर';
+      }
+    } else if (lang == 'hi') {
+      switch (position) {
+        case RelativePosition.left:
+          return '$label बाईं ओर';
+        case RelativePosition.centerAhead:
+          return '$label सीधे सामने';
+        case RelativePosition.right:
+          return '$label दाईं ओर';
+        case RelativePosition.unknown:
+          return '$label सामने';
+      }
+    }
+    return '$label ${position.spokenText}';
+  }
 
   String toRelativeClockString() {
     switch (position) {
@@ -53,7 +78,7 @@ class DetectedObject {
 }
 
 abstract class ObjectDetectionService {
-  Future<List<DetectedObject>> detectObjects(XFile imageFile);
+  Future<List<DetectedObject>> detectObjects(XFile imageFile, {String languageCode = 'en'});
 }
 
 class DefaultObjectDetectionService implements ObjectDetectionService {
@@ -62,15 +87,23 @@ class DefaultObjectDetectionService implements ObjectDetectionService {
   DefaultObjectDetectionService({this.geminiService});
 
   @override
-  Future<List<DetectedObject>> detectObjects(XFile imageFile) async {
+  Future<List<DetectedObject>> detectObjects(XFile imageFile, {String languageCode = 'en'}) async {
     try {
       final bytes = await imageFile.readAsBytes();
       if (bytes.isEmpty) return const [];
 
       if (geminiService != null) {
-        const prompt = 'You are an assistive spatial object detector for a blind individual. '
+        String langRule = 'label in English (e.g. door, chair, table, person)';
+        if (languageCode == 'mr') {
+          langRule = 'label in Marathi (मराठी) e.g. दरवाजा, खुर्ची, टेबल, व्यक्ती, मार्ग';
+        } else if (languageCode == 'hi') {
+          langRule = 'label in Hindi (हिन्दी) e.g. दरवाजा, कुर्सी, मेज़, व्यक्ति, रास्ता';
+        }
+
+        final prompt = 'You are an assistive spatial object detector for a blind individual. '
             'Scan this camera frame and identify up to 5 salient physical objects, obstacles, people, doors, or furniture. '
-            'Estimate their relative location: "left", "centerAhead", or "right".\n'
+            'Estimate their relative location: "left", "centerAhead", or "right". '
+            'Provide $langRule.\n'
             'Respond ONLY with a valid JSON array of objects in this exact schema without markdown or other text:\n'
             '[\n'
             '  {"label": "door", "confidence": 0.95, "position": "centerAhead"},\n'
@@ -82,39 +115,19 @@ class DefaultObjectDetectionService implements ObjectDetectionService {
           prompt: prompt,
           imageBytes: bytes,
           mimeType: 'image/jpeg',
+          maxTokens: 180,
         );
 
         final parsed = _parseDetections(response);
-        // Return whatever Gemini found (even if empty, meaning no objects in view)
         return parsed;
       }
 
-      return _buildFallbackDetections();
+      debugPrint('[ObjectDetectionService] Gemini vision unconfigured.');
+      return const <DetectedObject>[];
     } catch (e) {
-      debugPrint('[ObjectDetectionService] Detection error: $e');
-      // If AI service failed, provide helpful fallback spatial objects
-      return _buildFallbackDetections();
+      debugPrint('[ObjectDetectionService] Real-time detection error: $e');
+      return const <DetectedObject>[];
     }
-  }
-
-  List<DetectedObject> _buildFallbackDetections() {
-    return const [
-      DetectedObject(
-        label: 'Doorway',
-        confidence: 0.95,
-        position: RelativePosition.centerAhead,
-      ),
-      DetectedObject(
-        label: 'Chair',
-        confidence: 0.91,
-        position: RelativePosition.left,
-      ),
-      DetectedObject(
-        label: 'Desk Surface',
-        confidence: 0.88,
-        position: RelativePosition.right,
-      ),
-    ];
   }
 
   List<DetectedObject> _parseDetections(String rawResponse) {

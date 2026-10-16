@@ -50,6 +50,7 @@ abstract class SceneUnderstandingService {
   Future<SceneDescriptionResult> analyzeScene({
     required XFile imageFile,
     DescriptionVerbosity verbosity = DescriptionVerbosity.concise,
+    String languageCode = 'en',
   });
 }
 
@@ -62,6 +63,7 @@ class DefaultSceneUnderstandingService implements SceneUnderstandingService {
   Future<SceneDescriptionResult> analyzeScene({
     required XFile imageFile,
     DescriptionVerbosity verbosity = DescriptionVerbosity.concise,
+    String languageCode = 'en',
   }) async {
     try {
       final bytes = await imageFile.readAsBytes();
@@ -76,177 +78,161 @@ class DefaultSceneUnderstandingService implements SceneUnderstandingService {
         );
       }
 
-      if (geminiService != null) {
+      if (geminiService != null && geminiService!.preferencesService.hasGeminiApiKey) {
+        String langInstruction = 'Describe in clear, natural spoken English.';
+        if (languageCode == 'mr') {
+          langInstruction = 'Describe in clear, natural spoken Marathi (मराठी) for text-to-speech for a blind user in Maharashtra, India. Focus on walking path and obstacle locations.';
+        } else if (languageCode == 'hi') {
+          langInstruction = 'Describe in clear, natural spoken Hindi (हिन्दी) for text-to-speech for a blind user in India. Focus on walking path and obstacle locations.';
+        }
+
         final prompt = 'You are an assistive spatial awareness guide for a blind person. '
             'Look at this camera image and describe the physical scene in 2 direct, actionable sentences. '
+            '$langInstruction '
             'Highlight: 1) the walking path directly ahead, 2) any obstacles, doors, steps, people, or furniture and their positions (left, ahead, right). '
             'Then on a new line output:\n'
             'DETECTIONS:\n'
             '- [Object Name] | [Distance e.g. 1.5m] | [Position: Left/Center/Right]\n'
             '(List up to 3 most important real-world items)';
 
-        final response = await geminiService!.askGemini(
-          prompt: prompt,
-          imageBytes: bytes,
-          mimeType: 'image/jpeg',
-        );
+        try {
+          final response = await geminiService!.askGemini(
+            prompt: prompt,
+            imageBytes: bytes,
+            mimeType: 'image/jpeg',
+            maxTokens: 180,
+          );
 
-        final cleanedText = response.trim();
+          final cleanedText = response.trim();
 
-        // Separate description text and detections block
-        String spokenDescription = cleanedText;
-        final detectionsList = <ArDetectedObject>[];
-        final elementsList = <String>[];
+          // Separate description text and detections block
+          String spokenDescription = cleanedText;
+          final detectionsList = <ArDetectedObject>[];
+          final elementsList = <String>[];
 
-        if (cleanedText.contains('DETECTIONS:')) {
-          final parts = cleanedText.split('DETECTIONS:');
-          spokenDescription = parts[0].trim();
-          final detectionsBlock = parts[1].trim();
+          if (cleanedText.contains('DETECTIONS:')) {
+            final parts = cleanedText.split('DETECTIONS:');
+            spokenDescription = parts[0].trim();
+            final detectionsBlock = parts[1].trim();
 
-          final lines = detectionsBlock.split('\n');
-          int index = 0;
-          for (final line in lines) {
-            final trimmed = line.replaceAll(RegExp(r'^[-*•0-9.]\s*'), '').trim();
-            if (trimmed.isEmpty) continue;
+            final lines = detectionsBlock.split('\n');
+            int index = 0;
+            for (final line in lines) {
+              final trimmed = line.replaceAll(RegExp(r'^[-*•0-9.]\s*'), '').trim();
+              if (trimmed.isEmpty) continue;
 
-            final segments = trimmed.split('|').map((s) => s.trim()).toList();
-            final label = segments.isNotEmpty ? segments[0] : 'Object';
-            final distance = segments.length > 1 ? segments[1] : '1.5 m';
-            final posStr = segments.length > 2 ? segments[2].toLowerCase() : '';
+              final segments = trimmed.split('|').map((s) => s.trim()).toList();
+              final label = segments.isNotEmpty ? segments[0] : 'Object';
+              final distance = segments.length > 1 ? segments[1] : '1.5 m';
+              final posStr = segments.length > 2 ? segments[2].toLowerCase() : '';
 
-            elementsList.add(label);
+              elementsList.add(label);
 
-            double x = 0.15;
-            double y = 0.25;
-            Color color = AppColors.primaryCyan;
+              double x = 0.15;
+              double y = 0.25;
+              Color color = AppColors.primaryCyan;
 
-            if (posStr.contains('right') || index == 1) {
-              x = 0.60;
-              y = 0.20;
-              color = AppColors.successGreen;
-            } else if (posStr.contains('center') || posStr.contains('ahead') || index == 2) {
-              x = 0.35;
-              y = 0.50;
-              color = AppColors.warningAmber;
+              if (posStr.contains('right') || index == 1) {
+                x = 0.60;
+                y = 0.20;
+                color = AppColors.successGreen;
+              } else if (posStr.contains('center') || posStr.contains('ahead') || index == 2) {
+                x = 0.35;
+                y = 0.50;
+                color = AppColors.warningAmber;
+              }
+
+              detectionsList.add(
+                ArDetectedObject(
+                  label: label,
+                  distance: distance,
+                  x: x,
+                  y: y,
+                  width: 140,
+                  height: 100,
+                  color: color,
+                ),
+              );
+              index++;
+              if (index >= 3) break;
             }
-
-            detectionsList.add(
-              ArDetectedObject(
-                label: label,
-                distance: distance,
-                x: x,
-                y: y,
-                width: 140,
-                height: 100,
-                color: color,
-              ),
-            );
-            index++;
-            if (index >= 3) break;
           }
+
+          if (elementsList.isEmpty) {
+            final lower = cleanedText.toLowerCase();
+            for (final item in [
+              'door',
+              'hallway',
+              'chair',
+              'table',
+              'desk',
+              'person',
+              'path',
+              'stairs',
+              'window',
+              'laptop',
+              'screen',
+              'wall',
+            ]) {
+              if (lower.contains(item)) {
+                elementsList.add(item[0].toUpperCase() + item.substring(1));
+              }
+            }
+          }
+
+          return SceneDescriptionResult(
+            descriptionText: spokenDescription,
+            confidence: 0.95,
+            isLocalInference: false,
+            detectedElements: elementsList,
+            realWorldObjects: detectionsList,
+            isLightingAdequate: true,
+          );
+        } catch (e) {
+          debugPrint('[SceneUnderstandingService] Gemini call failed: $e');
+          final isMr = languageCode.startsWith('mr');
+          final isHi = languageCode.startsWith('hi');
+          final msg = isMr
+              ? 'कॅमेरा फ्रेम कॅप्चर झाली, परंतु एआय विश्लेषण अयशस्वी झाले. कृपया इंटरनेट आणि जेमिनी की तपासा.'
+              : (isHi
+                  ? 'कैमरा फ्रेम कैप्चर हुआ, लेकिन एआई विश्लेषण विफल रहा। कृपया इंटरनेट और जेमिनी की जांचें।'
+                  : 'Live frame captured, but AI analysis failed. Please verify your Gemini API key in Settings.');
+          return SceneDescriptionResult(
+            descriptionText: msg,
+            confidence: 0.0,
+            isLocalInference: false,
+            detectedElements: const [],
+            realWorldObjects: const [],
+            isLightingAdequate: true,
+          );
         }
-
-        // If no detections were parsed, extract salient keywords
-        if (elementsList.isEmpty) {
-          final lower = cleanedText.toLowerCase();
-          for (final item in [
-            'door',
-            'hallway',
-            'chair',
-            'table',
-            'desk',
-            'person',
-            'path',
-            'stairs',
-            'window',
-            'laptop',
-            'screen',
-            'wall',
-          ]) {
-            if (lower.contains(item)) {
-              elementsList.add(item[0].toUpperCase() + item.substring(1));
-            }
-          }
-
-          if (elementsList.isNotEmpty) {
-            detectionsList.add(ArDetectedObject(
-              label: elementsList[0],
-              distance: '1.5 m',
-              x: 0.15,
-              y: 0.25,
-              width: 140,
-              height: 100,
-              color: AppColors.primaryCyan,
-            ));
-            if (elementsList.length > 1) {
-              detectionsList.add(ArDetectedObject(
-                label: elementsList[1],
-                distance: '2.5 m',
-                x: 0.60,
-                y: 0.20,
-                width: 140,
-                height: 100,
-                color: AppColors.successGreen,
-              ));
-            }
-          }
-        }
-
-        return SceneDescriptionResult(
-          descriptionText: spokenDescription,
-          confidence: 0.95,
-          isLocalInference: false,
-          detectedElements: elementsList,
-          realWorldObjects: detectionsList,
-          isLightingAdequate: true,
-        );
       }
 
-      return _buildFallbackSceneResult('AI vision unconfigured.');
+      final isMr = languageCode.startsWith('mr');
+      final isHi = languageCode.startsWith('hi');
+      final unconfigMsg = isMr
+          ? 'थेट कॅमेरा फ्रेम सक्रिय आहे. रिअल-टाइम एआय विश्लेषणासाठी कृपया तुमची जेमिनी एपीआय की प्रविष्ट करा.'
+          : (isHi
+              ? 'लाइव कैमरा फ्रेम सक्रिय है। रीयल-टाइम एआई विश्लेषण के लिए कृपया अपनी जेमिनी एपीआई की दर्ज करें।'
+              : 'Live camera frame captured. To analyze what is in front of the camera in real time, please add your Gemini API Key.');
+      return SceneDescriptionResult(
+        descriptionText: unconfigMsg,
+        confidence: 0.0,
+        isLocalInference: false,
+        detectedElements: const [],
+        realWorldObjects: const [],
+        isLightingAdequate: true,
+      );
     } catch (e) {
       debugPrint('[SceneUnderstandingService] Real-time scene analysis error: $e');
-      // When API limit (429) or network issue happens, gracefully provide real-world environment description
-      return _buildFallbackSceneResult(e.toString());
+      return const SceneDescriptionResult(
+        descriptionText: 'Unable to capture camera frame. Please ensure camera permissions are granted.',
+        confidence: 0.0,
+        isLocalInference: false,
+        detectedElements: [],
+        realWorldObjects: [],
+        isLightingAdequate: false,
+      );
     }
-  }
-
-  SceneDescriptionResult _buildFallbackSceneResult(String reason) {
-    return const SceneDescriptionResult(
-      descriptionText:
-          'Open indoor pathway directly ahead. Desk surface with workspace equipment on your right, clear floor corridor on your left.',
-      confidence: 0.90,
-      isLocalInference: true,
-      detectedElements: ['Pathway', 'Desk', 'Chair'],
-      realWorldObjects: [
-        ArDetectedObject(
-          label: 'Pathway',
-          distance: 'Ahead (Clear)',
-          x: 0.30,
-          y: 0.48,
-          width: 160,
-          height: 90,
-          color: AppColors.warningAmber,
-        ),
-        ArDetectedObject(
-          label: 'Desk',
-          distance: '1.2 m',
-          x: 0.62,
-          y: 0.25,
-          width: 130,
-          height: 110,
-          color: AppColors.successGreen,
-        ),
-        ArDetectedObject(
-          label: 'Chair',
-          distance: '0.8 m',
-          x: 0.12,
-          y: 0.22,
-          width: 120,
-          height: 140,
-          color: AppColors.primaryCyan,
-        ),
-      ],
-      isLightingAdequate: true,
-    );
   }
 }

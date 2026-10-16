@@ -1,11 +1,9 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/localization/app_localizations.dart';
 import '../../../app/providers.dart';
 import '../../../app/theme/accessibility_tokens.dart';
 import '../../../app/theme/app_colors.dart';
-import '../../../core/camera/camera_service.dart';
 import '../../../core/haptics/haptic_patterns.dart';
 import '../../../core/storage/history_repository.dart';
 import '../../../core/widgets/live_camera_viewport.dart';
@@ -42,6 +40,7 @@ class _ImageQaScreenState extends ConsumerState<ImageQaScreen> {
     }
 
     setState(() => _isProcessing = true);
+    final strings = AppStrings.of(context);
     final voice = ref.read(unifiedVoiceControllerProvider);
     final haptics = ref.read(hapticServiceProvider);
     final qaService = ref.read(imageQaServiceProvider);
@@ -51,16 +50,19 @@ class _ImageQaScreenState extends ConsumerState<ImageQaScreen> {
     await haptics.trigger(HapticPattern.processingStarted);
     await voice.speak('Analyzing scene for: $question...');
 
-    final frame = await cameraService.takePicture() ??
-        XFile.fromData(
-          DeviceCameraService.fallbackFrameBytes,
-          mimeType: 'image/jpeg',
-          name: 'frame.jpg',
-        );
+    final frame = await cameraService.takePicture();
+    if (frame == null) {
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      await haptics.trigger(HapticPattern.actionError);
+      await voice.speak('Camera is not ready. Please verify camera permissions.');
+      return;
+    }
 
     final result = await qaService.answerQuestion(
       imageFile: frame,
       question: question,
+      languageCode: strings.locale.languageCode,
     );
 
     if (!mounted) return;
@@ -80,6 +82,49 @@ class _ImageQaScreenState extends ConsumerState<ImageQaScreen> {
 
     await haptics.trigger(HapticPattern.actionSuccess);
     await voice.speak(_answerText!);
+  }
+
+  String? _lastQaTouchZone;
+  DateTime _lastQaTouchTime = DateTime.now();
+
+  void _handleQaTouch(Offset localPos, Size size, AppStrings strings) {
+    final normY = (localPos.dy / size.height).clamp(0.0, 1.0);
+    final isMr = strings.locale.languageCode.startsWith('mr');
+    final isHi = strings.locale.languageCode.startsWith('hi');
+
+    String zone;
+    String feedback;
+
+    if (normY < 0.50) {
+      zone = 'viewfinder';
+      feedback = isMr
+          ? 'कॅमेरा दृश्य. छायाचित्राबद्दल विचारण्यासाठी टॅप करा.'
+          : (isHi
+              ? 'कैमरा दृश्य। तस्वीर के बारे में पूछने के लिए टैप करें।'
+              : 'Live camera viewfinder. Point at anything to ask questions.');
+    } else if (normY < 0.75) {
+      zone = 'question_input';
+      feedback = isMr
+          ? 'प्रश्न बॉक्स: ${_questionController.text}. बदलण्यासाठी टॅप करा.'
+          : (isHi
+              ? 'प्रश्न बॉक्स: ${_questionController.text}। बदलने के लिए टैप करें।'
+              : 'Question box: ${_questionController.text}. Tap to edit question.');
+    } else {
+      zone = 'ask_button';
+      feedback = isMr
+          ? 'एआय प्रश्न विचारा बटण. उत्तर मिळवण्यासाठी दोनदा टॅप करा.'
+          : (isHi
+              ? 'एआई प्रश्न पूछें बटन। उत्तर पाने के लिए दो बार टैप करें।'
+              : 'Ask Gemini button. Double tap to capture and answer.');
+    }
+
+    final now = DateTime.now();
+    if (zone != _lastQaTouchZone || now.difference(_lastQaTouchTime).inMilliseconds > 2200) {
+      _lastQaTouchZone = zone;
+      _lastQaTouchTime = now;
+      ref.read(hapticServiceProvider).trigger(HapticPattern.lightTap);
+      ref.read(unifiedVoiceControllerProvider).speak(feedback, interrupt: true);
+    }
   }
 
   @override
@@ -103,6 +148,7 @@ class _ImageQaScreenState extends ConsumerState<ImageQaScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          tooltip: 'Back',
           onPressed: () {
             haptics.trigger(HapticPattern.lightTap);
             Navigator.of(context).pop();
@@ -114,9 +160,16 @@ class _ImageQaScreenState extends ConsumerState<ImageQaScreen> {
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final screenSize = Size(constraints.maxWidth, constraints.maxHeight);
+            return Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (e) => _handleQaTouch(e.localPosition, screenSize, strings),
+              onPointerMove: (e) => _handleQaTouch(e.localPosition, screenSize, strings),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Live Camera Viewport for Visual Q&A
@@ -136,8 +189,9 @@ class _ImageQaScreenState extends ConsumerState<ImageQaScreen> {
                           ? Container(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                               decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.7),
+                                color: Colors.black.withValues(alpha: 0.75),
                                 borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.primaryCyan.withValues(alpha: 0.5)),
                               ),
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -160,7 +214,59 @@ class _ImageQaScreenState extends ConsumerState<ImageQaScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+
+              // Quick Question Preset Chips
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    _buildPresetChip(
+                      label: 'Identify Object',
+                      question: 'What is this object?',
+                      icon: Icons.search_rounded,
+                      haptics: haptics,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPresetChip(
+                      label: 'Check Colors',
+                      question: 'What colors are present in this image?',
+                      icon: Icons.palette_rounded,
+                      haptics: haptics,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPresetChip(
+                      label: 'Read Text',
+                      question: 'Read any visible text in this scene',
+                      icon: Icons.text_fields_rounded,
+                      haptics: haptics,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPresetChip(
+                      label: 'Check Safety',
+                      question: 'Is the path ahead safe and clear of hazards?',
+                      icon: Icons.shield_rounded,
+                      haptics: haptics,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPresetChip(
+                      label: 'Check Path',
+                      question: 'Is there any obstacle in my walking path?',
+                      icon: Icons.directions_walk_rounded,
+                      haptics: haptics,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPresetChip(
+                      label: 'Find Exit/Door',
+                      question: 'Where is the door or exit?',
+                      icon: Icons.door_front_door_rounded,
+                      haptics: haptics,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
 
               // Question Pill: "🔊 What is this object?" (Matching Reference Screen 6)
               Align(
@@ -183,21 +289,25 @@ class _ImageQaScreenState extends ConsumerState<ImageQaScreen> {
                     children: [
                       const Icon(Icons.volume_up_rounded, color: Colors.white, size: 18),
                       const SizedBox(width: 8),
-                      Text(
-                        _questionController.text.isNotEmpty
-                            ? _questionController.text
-                            : 'What is this object?',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
+                      Flexible(
+                        child: Text(
+                          _questionController.text.isNotEmpty
+                              ? _questionController.text
+                              : 'What is this object?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               // AI Response Card (Matching Reference Screen 6)
               Container(
@@ -238,63 +348,172 @@ class _ImageQaScreenState extends ConsumerState<ImageQaScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // Bottom Elevated Glowing Mic Button (Matching Reference Screen 6)
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Semantics(
-                      button: true,
-                      label: strings.tapToSpeak,
-                      child: InkWell(
-                        onTap: () {
-                          haptics.trigger(HapticPattern.actionSuccess);
-                          voice.speak('Listening for your question about this image...');
-                          _askQuestion('What is this object?');
-                        },
-                        borderRadius: BorderRadius.circular(38),
-                        child: Container(
-                          width: 74,
-                          height: 74,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [AppColors.primaryCyan, AppColors.primaryBlue],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+              // 3 Floating Action Controls: Camera Recapture, Elevated Cyan Mic, Listen Again
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // 1. Shutter / Retake Button (Left)
+                  Semantics(
+                    button: true,
+                    label: strings.capture,
+                    child: InkWell(
+                      onTap: _isProcessing
+                          ? null
+                          : () {
+                              haptics.trigger(HapticPattern.buttonTap);
+                              _askQuestion(_questionController.text);
+                            },
+                      borderRadius: BorderRadius.circular(32),
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.cardDark,
+                          border: Border.all(color: AppColors.cardBorderDark, width: 1.5),
+                        ),
+                        child: const Icon(Icons.camera_alt_outlined, color: Colors.white, size: 26),
+                      ),
+                    ),
+                  ),
+
+                  // 2. Elevated Cyan Mic Button (Center Hero)
+                  Semantics(
+                    button: true,
+                    label: strings.tapToSpeak,
+                    child: InkWell(
+                      onTap: () {
+                        haptics.trigger(HapticPattern.actionSuccess);
+                        voice.speak('Listening for your question about this image...');
+                        _askQuestion(_questionController.text.isNotEmpty ? _questionController.text : 'What is this object?');
+                      },
+                      borderRadius: BorderRadius.circular(40),
+                      child: Container(
+                        width: 74,
+                        height: 74,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [AppColors.primaryCyan, AppColors.primaryBlue],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryCyan.withValues(alpha: 0.45),
+                              blurRadius: 20,
+                              spreadRadius: 2,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primaryCyan.withValues(alpha: 0.45),
-                                blurRadius: 20,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            _isProcessing ? Icons.sync_rounded : Icons.mic_rounded,
-                            color: Colors.white,
-                            size: 34,
-                          ),
+                          ],
+                        ),
+                        child: Icon(
+                          _isProcessing ? Icons.sync_rounded : Icons.mic_rounded,
+                          color: Colors.white,
+                          size: 34,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      strings.tapToSpeak,
-                      style: const TextStyle(
-                        color: AppColors.textSecondaryDark,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                  ),
+
+                  // 3. Speaker / Repeat Button (Right)
+                  Semantics(
+                    button: true,
+                    label: strings.listen,
+                    child: InkWell(
+                      onTap: () {
+                        haptics.trigger(HapticPattern.selectionClick);
+                        if (_answerText != null) {
+                          voice.speak(_answerText!);
+                        } else {
+                          voice.speak('Point camera and tap the microphone to ask a visual question.');
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(32),
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.cardDark,
+                          border: Border.all(color: AppColors.cardBorderDark, width: 1.5),
+                        ),
+                        child: const Icon(Icons.volume_up_rounded, color: AppColors.primaryCyan, size: 26),
                       ),
                     ),
-                  ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: Text(
+                  strings.tapToSpeak,
+                  style: const TextStyle(
+                    color: AppColors.textSecondaryDark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
           ),
+        ),
+      );
+    },
+  ),
+),
+);
+}
+
+  Widget _buildPresetChip({
+    required String label,
+    required String question,
+    required IconData icon,
+    required dynamic haptics,
+  }) {
+    final isSelected = _questionController.text == question;
+    return InkWell(
+      onTap: _isProcessing
+          ? null
+          : () {
+              haptics.trigger(HapticPattern.selectionClick);
+              setState(() {
+                _questionController.text = question;
+              });
+              _askQuestion(question);
+            },
+      borderRadius: BorderRadius.circular(AccessibilityTokens.radiusPill),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primaryCyan.withValues(alpha: 0.22)
+              : const Color(0xFF162035),
+          borderRadius: BorderRadius.circular(AccessibilityTokens.radiusPill),
+          border: Border.all(
+            color: isSelected ? AppColors.primaryCyan : Colors.white12,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: isSelected ? AppColors.primaryCyan : Colors.white70,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white70,
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );

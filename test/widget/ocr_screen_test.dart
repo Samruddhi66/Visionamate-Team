@@ -24,7 +24,7 @@ class MockOcrService implements OcrService {
   });
 
   @override
-  Future<OcrTextResult> recognizeText(XFile imageFile) async => result;
+  Future<OcrTextResult> recognizeText(XFile imageFile, {String languageCode = 'en'}) async => result;
 }
 
 void main() {

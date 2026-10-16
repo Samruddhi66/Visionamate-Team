@@ -24,7 +24,7 @@ class MockCurrencyDetectionService implements CurrencyDetectionService {
   });
 
   @override
-  Future<CurrencyDetectionResult> identifyCurrency(XFile imageFile) async => result;
+  Future<CurrencyDetectionResult> identifyCurrency(XFile imageFile, {String languageCode = 'en'}) async => result;
 }
 
 void main() {
@@ -96,6 +96,28 @@ void main() {
       expect(mockHaptics.triggeredPatterns, contains(HapticPattern.processingStarted));
       expect(mockHaptics.triggeredPatterns, contains(HapticPattern.actionSuccess));
       expect(mockTts.spokenHistory, contains('Identified: 500 Rupees note (Confidence 94%).'));
+    });
+
+    testWidgets('touching or clicking anywhere on screen triggers haptic feedback and spoken guidance',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(createCurrencyWidget());
+      await tester.pumpAndSettle();
+
+      mockHaptics.triggeredPatterns.clear();
+
+      // Tap on upper area (Viewfinder)
+      await tester.tapAt(const Offset(200, 300));
+      await tester.pump();
+
+      expect(mockHaptics.triggeredPatterns, contains(HapticPattern.lightTap));
+      expect(
+        mockTts.spokenHistory.any((s) => s.contains('Banknote camera viewfinder')),
+        isTrue,
+      );
     });
   });
 }

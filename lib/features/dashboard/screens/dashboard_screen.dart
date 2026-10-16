@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/localization/app_localizations.dart';
 import '../../../app/providers.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../app/theme/app_theme.dart';
 import '../../../core/coordinator/unified_voice_controller.dart';
 import '../../../core/haptics/haptic_patterns.dart';
 import '../../../core/widgets/accessible_feature_card.dart';
@@ -106,6 +107,115 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
+  String? _lastDashboardTouchZone;
+  DateTime _lastDashboardTouchTime = DateTime.now();
+
+  void _handleDashboardTouch(Offset localPos, Size size, AppStrings strings) {
+    final normX = (localPos.dx / size.width).clamp(0.0, 1.0);
+    final normY = (localPos.dy / size.height).clamp(0.0, 1.0);
+    final lang = strings.locale.languageCode;
+    final isMr = lang.startsWith('mr');
+    final isHi = lang.startsWith('hi');
+
+    String zone;
+    String feedback;
+
+    if (normY < 0.09) {
+      if (normX < 0.28) {
+        zone = 'header_menu';
+        feedback = isMr
+            ? 'अधिक पर्याय मेनू बटण.'
+            : (isHi ? 'अन्य विकल्प मेन्यू बटन।' : 'More features menu button.');
+      } else if (normX > 0.72) {
+        zone = 'header_settings';
+        feedback = isMr
+            ? 'सुगमता आणि सेटिंग्ज बटण.'
+            : (isHi ? 'सुगमता और सेटिंग्स बटन।' : 'Settings and accessibility button.');
+      } else {
+        zone = 'header_title';
+        feedback = isMr
+            ? 'VisionMate 2.0. स्वावलंबी जगा.'
+            : (isHi ? 'VisionMate 2.0. स्वतंत्र जीवन जिएं।' : 'VisionMate 2.0. See beyond boundaries.');
+      }
+    } else if (normY < 0.18) {
+      zone = 'greeting';
+      feedback = '${strings.greetingPrefix}. ${strings.helpPrompt}';
+    } else if (normY < 0.35) {
+      zone = 'hero_assistant';
+      feedback = isMr
+          ? 'व्हॉइस असिस्टंट: बोलण्यासाठी किंवा जेमिनीला विचारण्यासाठी टॅप करा.'
+          : (isHi
+              ? 'वॉइस सहायक: बोलने या जेमिनी से सहायता के लिए टैप करें।'
+              : 'Voice Assistant hero card: Tap to speak voice commands or ask questions.');
+    } else if (normY < 0.88) {
+      final isLeft = normX < 0.50;
+      if (normY < 0.53) {
+        if (isLeft) {
+          zone = 'card_navigation';
+          feedback = isMr
+              ? 'नेव्हिगेशन कार्ड: वळण मार्गदर्शन सुरू करण्यासाठी टॅप करा.'
+              : (isHi
+                  ? 'नेविगेशन कार्ड: रास्ता मार्गदर्शन शुरू करने के लिए टैप करें।'
+                  : 'Navigation card: Walking and directional guidance.');
+        } else {
+          zone = 'card_ai_vision';
+          feedback = isMr
+              ? 'एआय व्हिजन कार्ड: थेट दृश्य आणि अडथळे तपासण्यासाठी टॅप करा.'
+              : (isHi
+                  ? 'एआई विज़न कार्ड: वास्तविक दृश्य और बाधा जांच के लिए टैप करें।'
+                  : 'AI Vision card: Real-time scene and obstacle analysis.');
+        }
+      } else if (normY < 0.71) {
+        if (isLeft) {
+          zone = 'card_cash';
+          feedback = isMr
+              ? 'कॅश डिटेक्टर कार्ड: भारतीय रुपया नोटा ओळखण्यासाठी टॅप करा.'
+              : (isHi
+                  ? 'कैश डिटेक्टर कार्ड: भारतीय रुपया नोट पहचानने के लिए टैप करें।'
+                  : 'Cash Detector card: Indian Rupee banknote identification.');
+        } else {
+          zone = 'card_object';
+          feedback = isMr
+              ? 'वस्तू ओळख कार्ड: वस्तू आणि व्यक्ती शोधण्यासाठी टॅप करा.'
+              : (isHi
+                  ? 'वस्तु पहचान कार्ड: वस्तुओं और लोगों को पहचानने के लिए टैप करें।'
+                  : 'Object Recognition card: Identify obstacles, people, and objects.');
+        }
+      } else {
+        if (isLeft) {
+          zone = 'card_settings';
+          feedback = isMr
+              ? 'सेटिंग्ज कार्ड: भाषा आणि आवाज गती बदलण्यासाठी टॅप करा.'
+              : (isHi
+                  ? 'सेटिंग्स कार्ड: आवाज और सुगमता सेटिंग्स के लिए टैप करें।'
+                  : 'Settings card: Voice language and accessibility settings.');
+        } else {
+          zone = 'card_more';
+          feedback = isMr
+              ? 'अधिक पर्याय कार्ड: मजकूर वाचन आणि प्रश्नोत्तरांसाठी टॅप करा.'
+              : (isHi
+                  ? 'अन्य सुविधाएं कार्ड: टेक्स्ट पढ़ने और प्रश्नोत्तर के लिए टैप करें।'
+                  : 'More features card: OCR reader, image Q&A, and saved places.');
+        }
+      }
+    } else {
+      zone = 'bottom_nav';
+      feedback = isMr
+          ? 'खालील नेव्हिगेशन बार: होम, इतिहास, तातडीची मदत एसओएस, आणि प्रोफाइल.'
+          : (isHi
+              ? 'निचला नेविगेशन बार: होम, इतिहास, आपातकालीन एसओएस, और प्रोफ़ाइल।'
+              : 'Bottom navigation bar: Home, History, Emergency SOS beacon, and Profile.');
+    }
+
+    final now = DateTime.now();
+    if (zone != _lastDashboardTouchZone || now.difference(_lastDashboardTouchTime).inMilliseconds > 2200) {
+      _lastDashboardTouchZone = zone;
+      _lastDashboardTouchTime = now;
+      ref.read(hapticServiceProvider).trigger(HapticPattern.lightTap);
+      ref.read(unifiedVoiceControllerProvider).speak(feedback, interrupt: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Watch locale so dashboard updates smoothly whenever user changes language
@@ -118,10 +228,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680),
-            child: CustomScrollView(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final screenSize = Size(constraints.maxWidth, constraints.maxHeight);
+            return Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (e) => _handleDashboardTouch(e.localPosition, screenSize, strings),
+              onPointerMove: (e) => _handleDashboardTouch(e.localPosition, screenSize, strings),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 680),
+                  child: CustomScrollView(
               slivers: [
                 // Status bar & App Header
                 SliverToBoxAdapter(
@@ -186,6 +303,113 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               ),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+
+                // Quick Status & Language Bar
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          // Gemini Vision Status
+                          InkWell(
+                            onTap: () => context.push('/scene-analysis'),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.successGreen.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: AppColors.successGreen.withValues(alpha: 0.35)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.bolt_rounded, color: AppColors.successGreen, size: 16),
+                                  SizedBox(width: 5),
+                                  Text(
+                                    'Gemini AI Live',
+                                    style: TextStyle(color: AppColors.successGreen, fontSize: 12, fontWeight: FontWeight.w700),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Quick Language Cycle Chip
+                          Builder(builder: (context) {
+                            final currentLocale = ref.watch(localeProvider);
+                            final code = currentLocale.languageCode;
+                            final label = code == 'mr' ? '🌐 मराठी' : (code == 'hi' ? '🌐 हिन्दी' : '🌐 English');
+                            return InkWell(
+                              onTap: () {
+                                final nextCode = code == 'en' ? 'hi' : (code == 'hi' ? 'mr' : 'en');
+                                ref.read(localeProvider.notifier).setLocale(nextCode);
+                              },
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1E293B),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: const Color(0xFF334155)),
+                                ),
+                                child: Text(
+                                  label,
+                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            );
+                          }),
+                          const SizedBox(width: 8),
+
+                          // Quick High Contrast Toggle Chip
+                          Builder(builder: (context) {
+                            final currentTheme = ref.watch(themeModeProvider);
+                            final isHc = currentTheme == AppThemeMode.highContrast;
+                            return InkWell(
+                              onTap: () {
+                                ref.read(themeModeProvider.notifier).setTheme(
+                                      isHc ? AppThemeMode.dark : AppThemeMode.highContrast,
+                                    );
+                              },
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: isHc ? AppColors.hcYellow : const Color(0xFF1E293B),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: isHc ? AppColors.hcYellow : const Color(0xFF334155)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.contrast_rounded,
+                                      color: isHc ? Colors.black : Colors.white70,
+                                      size: 15,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      isHc ? 'High Contrast: ON' : 'High Contrast',
+                                      style: TextStyle(
+                                        color: isHc ? Colors.black : Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -286,7 +510,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
       ),
     ),
-  ),
+  );
+},
+),
+),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentNavIndex,
         selectedItemColor: AppColors.primaryCyan,

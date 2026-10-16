@@ -18,6 +18,7 @@ class MockGeminiVisionService extends GeminiVisionService {
   Future<String> askGemini({
     required String prompt,
     List<int>? imageBytes,
+    int? maxTokens,
     String mimeType = 'image/jpeg',
     String? systemInstruction,
   }) async {
@@ -41,17 +42,11 @@ void main() {
       name: 'test.jpg',
     );
 
-    test('returns fallback detections when Gemini service is null', () async {
+    test('returns empty detections list without faking data when Gemini service is null', () async {
       final service = DefaultObjectDetectionService();
       final detections = await service.detectObjects(dummyFrame);
 
-      expect(detections.length, equals(3));
-      expect(detections[0].label, equals('Doorway'));
-      expect(detections[0].position, equals(RelativePosition.centerAhead));
-      expect(detections[1].label, equals('Chair'));
-      expect(detections[1].position, equals(RelativePosition.left));
-      expect(detections[2].label, equals('Desk Surface'));
-      expect(detections[2].position, equals(RelativePosition.right));
+      expect(detections, isEmpty);
     });
 
     test('parses pure JSON array response with left, centerAhead, right positions', () async {
@@ -155,6 +150,16 @@ void main() {
       );
       expect(obj3.toSpokenPhrase(), equals('Table on your right'));
       expect(obj3.toRelativeClockString(), equals("3 o'clock (Right)"));
+
+      // Test Marathi spoken phrases
+      expect(obj1.toSpokenPhrase('mr'), equals('Door थेट समोर'));
+      expect(obj2.toSpokenPhrase('mr'), equals('Chair डाव्या बाजूला'));
+      expect(obj3.toSpokenPhrase('mr'), equals('Table उजव्या बाजूला'));
+
+      // Test Hindi spoken phrases
+      expect(obj1.toSpokenPhrase('hi'), equals('Door सीधे सामने'));
+      expect(obj2.toSpokenPhrase('hi'), equals('Chair बाईं ओर'));
+      expect(obj3.toSpokenPhrase('hi'), equals('Table दाईं ओर'));
     });
   });
 }

@@ -245,6 +245,503 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  String _getPersonaDisplayName(String persona) {
+    switch (persona) {
+      case 'clear_male':
+        return 'Natural Confident (Male)';
+      case 'auto_enhanced':
+        return 'Auto-Enhanced Neural';
+      case 'warm_female':
+      default:
+        return 'Natural Warm (Female)';
+    }
+  }
+
+  void _showPersonaSelector(BuildContext context) {
+    final prefs = ref.read(preferencesServiceProvider);
+    final haptics = ref.read(hapticServiceProvider);
+
+    haptics.trigger(HapticPattern.lightTap);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF10182C),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Natural Voice Persona',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _buildPersonaOption(
+                  ctx,
+                  title: 'Natural Warm (Female)',
+                  subtitle: 'Friendly, warm conversational tone (Jenny / Google / Samantha)',
+                  persona: 'warm_female',
+                  icon: Icons.record_voice_over_rounded,
+                  color: const Color(0xFFEC4899),
+                  isSelected: prefs.voicePersona == 'warm_female',
+                ),
+                _buildPersonaOption(
+                  ctx,
+                  title: 'Natural Confident (Male)',
+                  subtitle: 'Grounded, clear assistive tone (Guy / Google / David)',
+                  persona: 'clear_male',
+                  icon: Icons.mic_external_on_rounded,
+                  color: const Color(0xFF3B82F6),
+                  isSelected: prefs.voicePersona == 'clear_male',
+                ),
+                _buildPersonaOption(
+                  ctx,
+                  title: 'Auto-Enhanced Neural',
+                  subtitle: 'Automatically picks the highest fidelity neural system voice',
+                  persona: 'auto_enhanced',
+                  icon: Icons.auto_awesome_rounded,
+                  color: AppColors.primaryCyan,
+                  isSelected: prefs.voicePersona == 'auto_enhanced',
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPersonaOption(
+    BuildContext ctx, {
+    required String title,
+    required String subtitle,
+    required String persona,
+    required IconData icon,
+    required Color color,
+    required bool isSelected,
+  }) {
+    final prefs = ref.read(preferencesServiceProvider);
+    final tts = ref.read(ttsServiceProvider);
+    final voice = ref.read(unifiedVoiceControllerProvider);
+    final haptics = ref.read(hapticServiceProvider);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: isSelected ? const Color(0xFF1E2D4A) : const Color(0xFF162035),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isSelected ? AppColors.primaryCyan : Colors.white12,
+          width: isSelected ? 1.5 : 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.18),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          title: Text(
+            title,
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+            ),
+          ),
+          subtitle: Text(
+            subtitle,
+            style: const TextStyle(color: AppColors.textSecondaryDark, fontSize: 12),
+          ),
+          trailing: isSelected
+              ? const Icon(Icons.check_circle_rounded, color: AppColors.primaryCyan)
+              : null,
+          onTap: () async {
+            Navigator.pop(ctx);
+            await prefs.setVoicePersona(persona);
+            await tts.setVoicePersona(persona);
+            haptics.trigger(HapticPattern.actionSuccess);
+            setState(() {});
+            final sample = persona == 'clear_male'
+                ? 'Hello Yogeshh! Natural male voice persona activated. I am ready to assist.'
+                : (persona == 'auto_enhanced'
+                    ? 'Hello Yogeshh! Enhanced neural voice activated.'
+                    : 'Hello Yogeshh! Natural warm voice persona activated. VisionMate is ready.');
+            await voice.speak(sample);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showAiVoiceApiDialog(BuildContext context) {
+    final prefs = ref.read(preferencesServiceProvider);
+    final aiVoice = ref.read(aiVoiceServiceProvider);
+    final voice = ref.read(unifiedVoiceControllerProvider);
+    final haptics = ref.read(hapticServiceProvider);
+
+    final elevenKeyController = TextEditingController(text: prefs.elevenLabsApiKey);
+    final openAiKeyController = TextEditingController(text: prefs.openAiApiKey);
+    String selectedProvider = prefs.aiVoiceProvider;
+    bool isTesting = false;
+    String? testStatus;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF10182C),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.graphic_eq_rounded, color: AppColors.primaryCyan, size: 24),
+                            SizedBox(width: 10),
+                            Text(
+                              'AI Human Voice API',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Connect high-fidelity AI voice APIs for warm, emotional, lifelike speech that builds deep trust. Local device voice acts as an automatic zero-latency fallback.',
+                      style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 13, height: 1.4),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Provider Tabs
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildProviderTab(
+                            'Gemini AI',
+                            'gemini',
+                            selectedProvider,
+                            onTap: () => setSheetState(() => selectedProvider = 'gemini'),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildProviderTab(
+                            'On-Device',
+                            'device',
+                            selectedProvider,
+                            onTap: () => setSheetState(() => selectedProvider = 'device'),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildProviderTab(
+                            'ElevenLabs',
+                            'elevenlabs',
+                            selectedProvider,
+                            onTap: () => setSheetState(() => selectedProvider = 'elevenlabs'),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildProviderTab(
+                            'OpenAI TTS',
+                            'openai',
+                            selectedProvider,
+                            onTap: () => setSheetState(() => selectedProvider = 'openai'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    if (selectedProvider == 'gemini') ...[
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF162035),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.primaryCyan.withValues(alpha: 0.4)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryCyan, size: 24),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Gemini Flash Natural Voice API',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Synthesizes studio-quality natural human speech in Marathi (मराठी), Hindi (हिन्दी), and English using your Gemini API key.',
+                                    style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12, height: 1.35),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    prefs.hasGeminiApiKey ? '✓ Gemini API key active and ready' : '⚠ Gemini API key required in Settings',
+                                    style: TextStyle(
+                                      color: prefs.hasGeminiApiKey ? AppColors.successGreen : AppColors.warningAmber,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (selectedProvider == 'device') ...[
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF162035),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.primaryCyan.withValues(alpha: 0.3)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.check_circle_rounded, color: AppColors.primaryCyan, size: 24),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Using Google/Apple Neural On-Device Voice. Free, private, and instant 0ms latency with zero setup.',
+                                style: TextStyle(color: Colors.white, fontSize: 13, height: 1.3),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (selectedProvider == 'elevenlabs') ...[
+                      const Text(
+                        'ElevenLabs API Key',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: elevenKeyController,
+                        obscureText: true,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Enter xi-api-key...',
+                          hintStyle: const TextStyle(color: Colors.white38),
+                          filled: true,
+                          fillColor: const Color(0xFF162035),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Uses Rachel (warm, emotional human tone) with multilingual v2 support.',
+                        style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 12),
+                      ),
+                    ] else if (selectedProvider == 'openai') ...[
+                      const Text(
+                        'OpenAI API Key',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: openAiKeyController,
+                        obscureText: true,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Enter sk-... API key',
+                          hintStyle: const TextStyle(color: Colors.white38),
+                          filled: true,
+                          fillColor: const Color(0xFF162035),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Uses Nova (natural & empathetic conversational speech) model.',
+                        style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 12),
+                      ),
+                    ],
+
+                    if (testStatus != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        testStatus!,
+                        style: TextStyle(
+                          color: testStatus!.contains('success') || testStatus!.contains('Playing')
+                              ? AppColors.primaryCyan
+                              : Colors.redAccent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        if (selectedProvider != 'device') ...[
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: isTesting
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryCyan),
+                                    )
+                                  : const Icon(Icons.play_arrow_rounded, color: AppColors.primaryCyan),
+                              label: const Text('Test Voice', style: TextStyle(color: AppColors.primaryCyan)),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: AppColors.primaryCyan),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              onPressed: isTesting
+                                  ? null
+                                  : () async {
+                                      setSheetState(() {
+                                        isTesting = true;
+                                        testStatus = 'Connecting to Voice API...';
+                                      });
+                                      final key = selectedProvider == 'gemini'
+                                          ? prefs.geminiApiKey
+                                          : (selectedProvider == 'elevenlabs'
+                                              ? elevenKeyController.text.trim()
+                                              : openAiKeyController.text.trim());
+                                      final success = await aiVoice.testConnection(
+                                        provider: selectedProvider,
+                                        apiKey: key,
+                                      );
+                                      setSheetState(() {
+                                        isTesting = false;
+                                        testStatus = success
+                                            ? 'Playing natural AI audio sample!'
+                                            : 'Connection failed. Please check your key.';
+                                      });
+                                    },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryCyan,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: () async {
+                              await prefs.setAiVoiceProvider(selectedProvider);
+                              if (selectedProvider == 'elevenlabs') {
+                                await prefs.setElevenLabsApiKey(elevenKeyController.text.trim());
+                              } else if (selectedProvider == 'openai') {
+                                await prefs.setOpenAiApiKey(openAiKeyController.text.trim());
+                              }
+                              haptics.trigger(HapticPattern.actionSuccess);
+                              if (ctx.mounted) {
+                                Navigator.pop(ctx);
+                              }
+                              if (mounted) {
+                                setState(() {});
+                              }
+                              voice.speak('Voice provider settings updated.');
+                            },
+                            child: const Text('Save & Apply', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildProviderTab(
+    String label,
+    String value,
+    String selectedValue, {
+    required VoidCallback onTap,
+  }) {
+    final isSelected = value == selectedValue;
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primaryCyan.withValues(alpha: 0.18) : const Color(0xFF162035),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? AppColors.primaryCyan : Colors.white12,
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white60,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _testGeminiConnection() async {
     setState(() {
       _isTestingApi = true;
@@ -274,6 +771,197 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await haptics.trigger(HapticPattern.actionError);
       await voice.speak('Connection failed. Please check your API key.');
     }
+  }
+
+  void _showGeminiApiKeyDialog(BuildContext context) {
+    final prefs = ref.read(preferencesServiceProvider);
+    final gemini = ref.read(geminiVisionServiceProvider);
+    final voice = ref.read(unifiedVoiceControllerProvider);
+    final haptics = ref.read(hapticServiceProvider);
+
+    final keyController = TextEditingController(text: prefs.geminiApiKey);
+    bool isTesting = false;
+    String? testStatus;
+    bool? testSuccess;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF10182C),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.auto_awesome_rounded, color: AppColors.primaryCyan, size: 24),
+                            SizedBox(width: 10),
+                            Text(
+                              'Gemini AI Vision API Key',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Configure your Google AI Gemini API key for real-time scene understanding, obstacle identification, OCR, and visual Q&A. Leave blank to use Fast Local Vision mode.',
+                      style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 13, height: 1.4),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: keyController,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: InputDecoration(
+                        labelText: 'Gemini API Key',
+                        labelStyle: const TextStyle(color: AppColors.primaryCyan),
+                        hintText: 'Paste key here',
+                        hintStyle: const TextStyle(color: Colors.white38),
+                        filled: true,
+                        fillColor: const Color(0xFF162035),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: Colors.white12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: AppColors.primaryCyan, width: 1.5),
+                        ),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.clear_rounded, color: Colors.white54),
+                          onPressed: () {
+                            keyController.clear();
+                            setSheetState(() {});
+                          },
+                        ),
+                      ),
+                    ),
+                    if (testStatus != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: (testSuccess == true)
+                              ? AppColors.successGreen.withValues(alpha: 0.15)
+                              : AppColors.warningAmber.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: (testSuccess == true)
+                                ? AppColors.successGreen.withValues(alpha: 0.4)
+                                : AppColors.warningAmber.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Text(
+                          testStatus!,
+                          style: TextStyle(
+                            color: (testSuccess == true) ? AppColors.successGreen : AppColors.warningAmber,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primaryCyan,
+                              side: const BorderSide(color: AppColors.primaryCyan),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: isTesting
+                                ? null
+                                : () async {
+                                    setSheetState(() {
+                                      isTesting = true;
+                                      testStatus = 'Testing key with Google Gemini...';
+                                      testSuccess = null;
+                                    });
+                                    final candidateKey = keyController.text.trim();
+                                    final ok = await gemini.testConnection(customKey: candidateKey);
+                                    setSheetState(() {
+                                      isTesting = false;
+                                      testSuccess = ok;
+                                      testStatus = ok
+                                          ? 'Key verified! Connected to Gemini 2.0 Flash.'
+                                          : 'Test failed. Please check key format or internet.';
+                                    });
+                                    if (ok) {
+                                      voice.speak('Gemini key verified successfully.');
+                                    }
+                                  },
+                            child: isTesting
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryCyan),
+                                  )
+                                : const Text('Test Key', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryCyan,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: () async {
+                              final savedKey = keyController.text.trim();
+                              await prefs.setGeminiApiKey(savedKey);
+                              haptics.trigger(HapticPattern.actionSuccess);
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              if (mounted) setState(() {});
+                              voice.speak(
+                                savedKey.isNotEmpty
+                                    ? 'Gemini API key saved. High-speed AI vision enabled.'
+                                    : 'Gemini API key cleared. Fast local vision active.',
+                              );
+                            },
+                            child: const Text('Save & Apply', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showAboutDialog(BuildContext context) {
@@ -414,6 +1102,120 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onTap: () {
                 haptics.trigger(HapticPattern.buttonTap);
                 _showSpeedSelector(context);
+              },
+            ),
+
+            // Natural Voice Persona row
+            _buildSettingsRow(
+              icon: Icons.record_voice_over_rounded,
+              title: 'Natural Voice Persona',
+              trailingWidget: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _getPersonaDisplayName(prefs.voicePersona),
+                    style: const TextStyle(
+                      color: Color(0xFF4FC3F7),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right_rounded, color: Colors.white54, size: 20),
+                ],
+              ),
+              onTap: () {
+                haptics.trigger(HapticPattern.buttonTap);
+                _showPersonaSelector(context);
+              },
+            ),
+
+            // AI Human Voice API row (ElevenLabs / OpenAI / Device)
+            _buildSettingsRow(
+              icon: Icons.graphic_eq_rounded,
+              title: 'AI Human Voice API',
+              trailingWidget: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    prefs.aiVoiceProvider == 'gemini'
+                        ? 'Gemini Natural'
+                        : (prefs.aiVoiceProvider == 'elevenlabs'
+                            ? 'ElevenLabs'
+                            : (prefs.aiVoiceProvider == 'openai' ? 'OpenAI TTS' : 'On-Device')),
+                    style: const TextStyle(
+                      color: Color(0xFF4FC3F7),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right_rounded, color: Colors.white54, size: 20),
+                ],
+              ),
+              onTap: () {
+                haptics.trigger(HapticPattern.buttonTap);
+                _showAiVoiceApiDialog(context);
+              },
+            ),
+
+            // Gemini AI Vision API Key row
+            _buildSettingsRow(
+              icon: Icons.auto_awesome_rounded,
+              title: 'Gemini AI Vision API Key',
+              trailingWidget: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    prefs.hasGeminiApiKey ? 'Configured' : 'Fast Local Mode',
+                    style: TextStyle(
+                      color: prefs.hasGeminiApiKey ? AppColors.successGreen : const Color(0xFF4FC3F7),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right_rounded, color: Colors.white54, size: 20),
+                ],
+              ),
+              onTap: () {
+                haptics.trigger(HapticPattern.buttonTap);
+                _showGeminiApiKeyDialog(context);
+              },
+            ),
+
+            // Test Spoken Voice row
+            _buildSettingsRow(
+              icon: Icons.play_circle_outline_rounded,
+              title: s.testVoice,
+              trailingWidget: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryCyan.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.primaryCyan.withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.volume_up_rounded, color: AppColors.primaryCyan, size: 16),
+                    SizedBox(width: 4),
+                    Text(
+                      'Play',
+                      style: TextStyle(
+                        color: AppColors.primaryCyan,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              onTap: () {
+                haptics.trigger(HapticPattern.buttonTap);
+                voice.speak(
+                  'Hello Yogeshh! VisionMate is ready with clear, natural voice guidance.',
+                );
               },
             ),
 

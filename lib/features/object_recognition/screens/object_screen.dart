@@ -1,11 +1,9 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/localization/app_localizations.dart';
 import '../../../app/providers.dart';
 import '../../../app/theme/accessibility_tokens.dart';
 import '../../../app/theme/app_colors.dart';
-import '../../../core/camera/camera_service.dart';
 import '../../../core/haptics/haptic_patterns.dart';
 import '../../../core/storage/history_repository.dart';
 import '../../../core/widgets/live_camera_viewport.dart';
@@ -49,14 +47,20 @@ class _ObjectRecognitionScreenState extends ConsumerState<ObjectRecognitionScree
     await haptics.trigger(HapticPattern.processingStarted);
     await voice.speak(strings.processing);
 
-    final frame = await cameraService.takePicture() ??
-        XFile.fromData(
-          DeviceCameraService.fallbackFrameBytes,
-          mimeType: 'image/jpeg',
-          name: 'object_frame.jpg',
-        );
+    final frame = await cameraService.takePicture();
+    if (frame == null) {
+      if (!mounted) return;
+      setState(() => _isDetecting = false);
+      await haptics.trigger(HapticPattern.actionError);
+      await voice.speak('Camera is not ready. Please verify camera permissions.');
+      return;
+    }
 
-    final detections = await objectService.detectObjects(frame);
+    final lang = strings.locale.languageCode;
+    final detections = await objectService.detectObjects(
+      frame,
+      languageCode: lang,
+    );
 
     if (!mounted) return;
 
@@ -66,9 +70,18 @@ class _ObjectRecognitionScreenState extends ConsumerState<ObjectRecognitionScree
       _detections = detections;
     });
 
+    final isMr = lang.startsWith('mr');
+    final isHi = lang.startsWith('hi');
+
+    final emptyMsg = isMr
+        ? 'या कॅमेरा दृश्यात कोणतीही ठळक वस्तू आढळली नाही. कॅमेरा चांगल्या प्रकाशात वस्तूकडे वळवा.'
+        : (isHi
+            ? 'इस कैमरा दृश्य में कोई वस्तु नहीं मिली। कैमरे को रोशनी में किसी वस्तु की ओर करें।'
+            : 'No distinct physical objects identified in this camera view. Point camera towards well-lit objects.');
+
     final summary = _detections.isNotEmpty
-        ? _detections.map((d) => d.toSpokenPhrase()).join('. ')
-        : 'No distinct physical objects identified in this camera view. Point camera towards well-lit objects.';
+        ? _detections.map((d) => d.toSpokenPhrase(lang)).join('. ')
+        : emptyMsg;
 
     if (_detections.isNotEmpty) {
       await historyRepo.addEntry(HistoryEntry(
@@ -84,6 +97,63 @@ class _ObjectRecognitionScreenState extends ConsumerState<ObjectRecognitionScree
     }
 
     await voice.speak(summary);
+  }
+
+  String? _lastObjectTouchZone;
+  DateTime _lastObjectTouchTime = DateTime.now();
+
+  void _handleObjectTouch(Offset localPos, Size size, AppStrings strings) {
+    final normY = (localPos.dy / size.height).clamp(0.0, 1.0);
+    final lang = strings.locale.languageCode;
+    final isMr = lang.startsWith('mr');
+    final isHi = lang.startsWith('hi');
+
+    String zone;
+    String feedback;
+
+    if (normY < 0.60) {
+      if (_detections.isNotEmpty) {
+        zone = 'detections_viewfinder';
+        feedback = _detections.map((d) => d.toSpokenPhrase(lang)).join('. ');
+      } else {
+        zone = 'camera_viewfinder';
+        feedback = isMr
+            ? 'कॅमेरा दृश्य. वस्तू शोधण्यासाठी खालील माइक बटणावर टॅप करा.'
+            : (isHi
+                ? 'कैमरा दृश्य। वस्तु खोजने के लिए नीचे माइक बटन पर टैप करें।'
+                : 'Camera viewfinder. Tap microphone below to identify objects.');
+      }
+    } else if (normY < 0.82) {
+      zone = 'detections_card';
+      if (_detections.isNotEmpty) {
+        feedback = isMr
+            ? 'सापडलेल्या वस्तू: ${_detections.length} वस्तू ओळखल्या.'
+            : (isHi
+                ? 'पहचानी गई वस्तुएं: ${_detections.length} वस्तुएं मिलीं।'
+                : 'Detected objects list: ${_detections.length} objects found.');
+      } else {
+        feedback = isMr
+            ? 'वस्तू यादी रिकामी आहे. तपासण्यासाठी माइक बटण दाबा.'
+            : (isHi
+                ? 'वस्तु सूची खाली है। पहचानने के लिए माइक दबाएं।'
+                : 'Objects list empty. Tap microphone to scan.');
+      }
+    } else {
+      zone = 'mic_button';
+      feedback = isMr
+          ? 'वस्तू ओळख बटण. स्कॅन करण्यासाठी दोनदा टॅप करा.'
+          : (isHi
+              ? 'वस्तु पहचान बटन। स्कैन करने के लिए दो बार टैप करें।'
+              : 'Object scan button. Double tap to detect physical objects.');
+    }
+
+    final now = DateTime.now();
+    if (zone != _lastObjectTouchZone || now.difference(_lastObjectTouchTime).inMilliseconds > 2200) {
+      _lastObjectTouchZone = zone;
+      _lastObjectTouchTime = now;
+      ref.read(hapticServiceProvider).trigger(HapticPattern.lightTap);
+      ref.read(unifiedVoiceControllerProvider).speak(feedback, interrupt: true);
+    }
   }
 
   IconData _getIconForLabel(String label) {
@@ -124,6 +194,7 @@ class _ObjectRecognitionScreenState extends ConsumerState<ObjectRecognitionScree
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          tooltip: 'Back',
           onPressed: () {
             haptics.trigger(HapticPattern.lightTap);
             Navigator.of(context).pop();
@@ -135,9 +206,16 @@ class _ObjectRecognitionScreenState extends ConsumerState<ObjectRecognitionScree
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final screenSize = Size(constraints.maxWidth, constraints.maxHeight);
+            return Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (e) => _handleObjectTouch(e.localPosition, screenSize, strings),
+              onPointerMove: (e) => _handleObjectTouch(e.localPosition, screenSize, strings),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Live Camera Viewport with Real-World AR Bounding Boxes
@@ -298,9 +376,12 @@ class _ObjectRecognitionScreenState extends ConsumerState<ObjectRecognitionScree
             ],
           ),
         ),
-      ),
-    );
-  }
+      );
+    },
+  ),
+),
+);
+}
 
   Widget _buildArOverlayBox({
     required DetectedObject object,

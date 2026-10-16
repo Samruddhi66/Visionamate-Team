@@ -1,11 +1,11 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../app/localization/app_localizations.dart';
 import '../../../app/providers.dart';
 import '../../../app/theme/accessibility_tokens.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/audio/tts_service.dart';
-import '../../../core/camera/camera_service.dart';
 import '../../../core/haptics/haptic_patterns.dart';
 import '../../../core/storage/history_repository.dart';
 import '../../../core/widgets/accessible_action_button.dart';
@@ -33,6 +33,7 @@ class _OcrScreenState extends ConsumerState<OcrScreen> {
   }
 
   Future<void> _scanAndReadText() async {
+    final strings = AppStrings.of(context);
     setState(() => _isProcessing = true);
     final voice = ref.read(unifiedVoiceControllerProvider);
     final haptics = ref.read(hapticServiceProvider);
@@ -43,13 +44,20 @@ class _OcrScreenState extends ConsumerState<OcrScreen> {
     await haptics.trigger(HapticPattern.processingStarted);
     await voice.speak('Capturing and reading text...');
 
-    final frame = await cameraService.takePicture() ??
-        XFile.fromData(
-          DeviceCameraService.fallbackFrameBytes,
-          mimeType: 'image/jpeg',
-          name: 'ocr_frame.jpg',
-        );
-    final result = await ocrService.recognizeText(frame);
+    final frame = await cameraService.takePicture();
+    if (frame == null) {
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      await haptics.trigger(HapticPattern.actionError);
+      await voice.speak('Camera is not ready. Please verify camera permissions.');
+      return;
+    }
+    final result = await ocrService.recognizeText(
+      frame,
+      languageCode: strings.locale.languageCode,
+    );
+
+    if (!mounted) return;
 
     setState(() {
       _isProcessing = false;
@@ -70,10 +78,55 @@ class _OcrScreenState extends ConsumerState<OcrScreen> {
     await voice.speak(_extractedText!);
   }
 
+  String? _lastOcrTouchZone;
+  DateTime _lastOcrTouchTime = DateTime.now();
+
+  void _handleOcrTouch(Offset localPos, Size size, AppStrings strings) {
+    final normY = (localPos.dy / size.height).clamp(0.0, 1.0);
+    final isMr = strings.locale.languageCode.startsWith('mr');
+    final isHi = strings.locale.languageCode.startsWith('hi');
+
+    String zone;
+    String feedback;
+
+    if (normY < 0.55) {
+      zone = 'viewfinder';
+      feedback = isMr
+          ? 'कॅमेरा मजकूर दृश्य. वाचण्यासाठी कागदपत्र किंवा फलक समोर धरा.'
+          : (isHi
+              ? 'कैमरा टेक्स्ट दृश्य। पढ़ने के लिए दस्तावेज़ या बोर्ड सामने रखें।'
+              : 'Camera document reader. Align document or sign to read.');
+    } else if (normY < 0.82) {
+      zone = 'text_display';
+      final hasText = _extractedText != null && _extractedText!.isNotEmpty;
+      feedback = hasText
+          ? (isMr ? 'ओळखलेला मजकूर: $_extractedText' : (isHi ? 'पहचाना गया टेक्स्ट: $_extractedText' : 'Recognized text: $_extractedText'))
+          : (isMr ? 'मजकूर डिस्प्ले क्षेत्र. अजून कोणताही मजकूर वाचलेला नाही.' : (isHi ? 'टेक्स्ट डिस्प्ले क्षेत्र। अभी कोई टेक्स्ट नहीं पढ़ा गया।' : 'Recognized text area. No text scanned yet.'));
+    } else {
+      zone = 'scan_button';
+      feedback = isMr
+          ? 'स्कॅन आणि मजकूर वाचा बटण. वाचण्यासाठी दोनदा टॅप करा.'
+          : (isHi
+              ? 'स्कैन और पढ़ें बटन। पढ़ने के लिए दो बार टैप करें।'
+              : 'Scan and read text button. Double tap to capture.');
+    }
+
+    final now = DateTime.now();
+    if (zone != _lastOcrTouchZone || now.difference(_lastOcrTouchTime).inMilliseconds > 2200) {
+      _lastOcrTouchZone = zone;
+      _lastOcrTouchTime = now;
+      ref.read(hapticServiceProvider).trigger(HapticPattern.lightTap);
+      ref.read(unifiedVoiceControllerProvider).speak(feedback, interrupt: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeProvider);
+    final strings = AppStrings.of(context);
     final tts = ref.watch(ttsServiceProvider);
     final voice = ref.watch(unifiedVoiceControllerProvider);
+    final hapticService = ref.watch(hapticServiceProvider);
     final cameraService = ref.watch(cameraServiceProvider);
     final isSpeaking = tts.state == TtsState.speaking;
 
@@ -82,12 +135,19 @@ class _OcrScreenState extends ConsumerState<OcrScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.surfaceDark,
         elevation: 0,
-        title: const Text('Read Text (OCR)', style: TextStyle(fontWeight: FontWeight.w800)),
+        title: Text('${strings.readText} (OCR)', style: const TextStyle(fontWeight: FontWeight.w800)),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final screenSize = Size(constraints.maxWidth, constraints.maxHeight);
+            return Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (e) => _handleOcrTouch(e.localPosition, screenSize, strings),
+              onPointerMove: (e) => _handleOcrTouch(e.localPosition, screenSize, strings),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Real Live Camera Viewfinder with Document Alignment Guide
@@ -195,6 +255,15 @@ class _OcrScreenState extends ConsumerState<OcrScreen> {
                       tooltip: 'Repeat text from start',
                       onPressed: () => voice.speak(_extractedText!),
                     ),
+                    IconButton.filledTonal(
+                      icon: const Icon(Icons.copy_rounded),
+                      tooltip: 'Copy text to clipboard',
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: _extractedText!));
+                        hapticService.trigger(HapticPattern.actionSuccess);
+                        voice.speak('Text copied to clipboard.');
+                      },
+                    ),
                   ],
                 ),
                 const SizedBox(height: AccessibilityTokens.spaceM),
@@ -212,7 +281,10 @@ class _OcrScreenState extends ConsumerState<OcrScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
+      );
+    },
+  ),
+),
+);
+}
 }

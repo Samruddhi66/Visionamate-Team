@@ -25,5 +25,49 @@ void main() {
       expect(mock.spokenHistory, isEmpty);
       expect(mock.lastSpokenText, isNull);
     });
+
+    test('prepareNaturalSpeech sanitizes emojis, expands currency, acronyms, and distances', () {
+      // Emojis stripped
+      expect(
+        FlutterTtsService.prepareNaturalSpeech('Hello Yogeshh 👋! How can I help?'),
+        equals('Hello Yogeshh ! How can I help?'),
+      );
+
+      // Currency expansion
+      expect(
+        FlutterTtsService.prepareNaturalSpeech('Detected note: ₹500'),
+        equals('Detected note, 500 rupees'),
+      );
+
+      // Distance expansion
+      expect(
+        FlutterTtsService.prepareNaturalSpeech('Turn right in 30m ahead'),
+        equals('Turn right in 30 meters ahead'),
+      );
+
+      // Acronym expansion
+      expect(
+        FlutterTtsService.prepareNaturalSpeech('Emergency SOS mode and OCR text scanner'),
+        equals('Emergency S.O.S mode and O.C.R text scanner'),
+      );
+
+      // Markdown stripping
+      expect(
+        FlutterTtsService.prepareNaturalSpeech('**Caution**: `Obstacle ahead`'),
+        equals('Caution, Obstacle ahead'),
+      );
+    });
+
+    test('MockTtsService manages natural voice persona and discovery', () async {
+      final mock = MockTtsService();
+      expect(mock.activePersona, equals('warm_female'));
+
+      await mock.setVoicePersona('clear_male');
+      expect(mock.activePersona, equals('clear_male'));
+
+      final voices = await mock.getAvailableVoices();
+      expect(voices.length, greaterThanOrEqualTo(2));
+      expect(voices.any((v) => v['name']!.contains('Jenny')), isTrue);
+    });
   });
 }

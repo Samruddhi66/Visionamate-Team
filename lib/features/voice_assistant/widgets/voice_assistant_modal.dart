@@ -28,17 +28,7 @@ class VoiceAssistantModal extends ConsumerStatefulWidget {
 class _VoiceAssistantModalState extends ConsumerState<VoiceAssistantModal> {
   final TextEditingController _textController = TextEditingController();
 
-  final List<Map<String, String>> _conversationHistory = [
-    {
-      'role': 'user',
-      'text': 'What is in front of me?',
-    },
-    {
-      'role': 'assistant',
-      'text':
-          'There is a chair approximately 3 meters ahead, slightly to the right. There is a plant on the left side, and a pathway is clear for walking.',
-    },
-  ];
+  final List<Map<String, String>> _conversationHistory = [];
 
   @override
   void initState() {
@@ -127,18 +117,28 @@ class _VoiceAssistantModalState extends ConsumerState<VoiceAssistantModal> {
     final voice = ref.read(unifiedVoiceControllerProvider);
     final gemini = ref.read(geminiVisionServiceProvider);
     final haptics = ref.read(hapticServiceProvider);
+    final lang = ref.read(preferencesServiceProvider).language;
 
     setState(() {
       _conversationHistory.add({'role': 'user', 'text': query});
     });
 
     await haptics.trigger(HapticPattern.processingStarted);
-    await voice.speak('Analyzing...');
+    final analyzingSpeech = lang.startsWith('mr')
+        ? 'विचार करत आहे...'
+        : (lang.startsWith('hi') ? 'सोच रहा हूँ...' : 'Analyzing...');
+    await voice.speak(analyzingSpeech);
+
+    final langInstruction = lang.startsWith('mr')
+        ? 'The user speaks Marathi (मराठी). You MUST respond in fluent, grammatically correct, natural Marathi for Text-to-Speech in 1 to 2 spoken sentences.'
+        : (lang.startsWith('hi')
+            ? 'The user speaks Hindi (हिन्दी). You MUST respond in fluent, grammatically correct, natural Hindi for Text-to-Speech in 1 to 2 spoken sentences.'
+            : 'Answer clearly and concisely in 1 to 2 spoken English sentences.');
 
     try {
       final answer = await gemini.askGemini(
-        prompt: 'You are VisionMate, an intelligent voice companion for visually impaired people. '
-            'Answer this spoken user question or request directly, clearly, and concisely in 1 to 2 spoken sentences: "$query"',
+        prompt: 'You are VisionMate, an intelligent assistive voice companion for visually impaired people. '
+            'Answer this spoken user question or request directly, clearly, and concisely: "$query"\n$langInstruction',
       );
 
       if (!mounted) return;
@@ -151,13 +151,18 @@ class _VoiceAssistantModalState extends ConsumerState<VoiceAssistantModal> {
       await voice.speak(answer);
     } catch (e) {
       if (mounted) {
+        final fallback = lang.startsWith('mr')
+            ? 'मी ऐकले. आपण मला परिसर, नोटा, मजकूर किंवा मार्गदर्शनाबद्दल विचारू शकता.'
+            : (lang.startsWith('hi')
+                ? 'मैंने सुना। आप मुझसे आसपास की स्थिति, नोट, टेक्स्ट या दिशा के बारे में पूछ सकते हैं।'
+                : 'I heard you. You can ask me about surroundings, currency, text, or directions.');
         setState(() {
           _conversationHistory.add({
             'role': 'assistant',
-            'text': 'I heard you. You can ask me about surroundings, currency, text, or directions.'
+            'text': fallback,
           });
         });
-        await voice.speak('You can ask me about surroundings, currency, text, or directions.');
+        await voice.speak(fallback);
       }
     }
   }
@@ -265,10 +270,72 @@ class _VoiceAssistantModalState extends ConsumerState<VoiceAssistantModal> {
 
             // Live Conversational Chat Bubbles History (Matching Reference Screen 5)
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _conversationHistory.length,
-                itemBuilder: (context, index) {
+              child: _conversationHistory.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.primaryCyan.withValues(alpha: 0.12),
+                              border: Border.all(color: AppColors.primaryCyan.withValues(alpha: 0.3)),
+                            ),
+                            child: const Icon(Icons.graphic_eq_rounded, color: AppColors.primaryCyan, size: 36),
+                          ),
+                          const SizedBox(height: 14),
+                          const Text(
+                            'Listening in real time...',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 24),
+                            child: Text(
+                              'Speak commands like "Describe surroundings", "Read text", or "Identify currency".',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white60,
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _buildQuickChip('👁️ Describe Scene', () {
+                                Navigator.pop(context);
+                                context.push('/scene-analysis');
+                              }),
+                              _buildQuickChip('💵 Identify Cash', () {
+                                Navigator.pop(context);
+                                context.push('/currency');
+                              }),
+                              _buildQuickChip('📄 Read Text', () {
+                                Navigator.pop(context);
+                                context.push('/ocr');
+                              }),
+                              _buildQuickChip('🧭 Start Navigation', () {
+                                Navigator.pop(context);
+                                context.push('/navigation');
+                              }),
+                            ],
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: _conversationHistory.length,
+                      itemBuilder: (context, index) {
                   final msg = _conversationHistory[index];
                   final isUser = msg['role'] == 'user';
 
@@ -496,6 +563,16 @@ class _VoiceAssistantModalState extends ConsumerState<VoiceAssistantModal> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildQuickChip(String label, VoidCallback onTap) {
+    return ActionChip(
+      backgroundColor: const Color(0xFF1E293B),
+      side: const BorderSide(color: Color(0xFF334155)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      label: Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+      onPressed: onTap,
     );
   }
 }

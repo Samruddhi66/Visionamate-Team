@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:visionmate/app/app.dart';
 import 'package:visionmate/app/providers.dart';
 import 'package:visionmate/core/audio/tts_service.dart';
+import 'package:visionmate/core/haptics/haptic_patterns.dart';
 import 'package:visionmate/core/haptics/haptic_service.dart';
 import 'package:visionmate/core/speech/speech_service.dart';
 
@@ -75,5 +76,16 @@ void main() {
     expect(find.text('History'), findsOneWidget);
     expect(find.text('SOS'), findsOneWidget);
     expect(find.text('Profile'), findsOneWidget);
+
+    // Test Screen-Wide Touch Explorer: Touch anywhere triggers haptic + spoken guidance
+    mockHaptics.triggeredPatterns.clear();
+    await tester.tapAt(const Offset(100, 260)); // Hero Assistant / Greeting area
+    await tester.pump();
+
+    expect(mockHaptics.triggeredPatterns, contains(HapticPattern.lightTap));
+    expect(
+      mockTts.spokenHistory.any((msg) => msg.contains('Voice Assistant') || msg.contains('Hello Yogeshh')),
+      isTrue,
+    );
   });
 }

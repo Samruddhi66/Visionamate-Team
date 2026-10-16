@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
 import 'haptic_patterns.dart';
+import 'web_haptic_bridge.dart';
 
 /// Abstract service contract for tactile feedback
 abstract class HapticService {
@@ -83,6 +84,12 @@ class DeviceHapticService implements HapticService {
             break;
         }
       }
+      if (kIsWeb) {
+        final duration = pattern.vibrationDurationsMs.isNotEmpty
+            ? pattern.vibrationDurationsMs.first
+            : 30;
+        triggerWebHaptic(duration);
+      }
     } catch (e) {
       // Graceful degradation on unsupported platforms (e.g. desktop/web without vibration)
       debugPrint('[HapticService] Trigger degraded gracefully: $e');
@@ -92,7 +99,11 @@ class DeviceHapticService implements HapticService {
   @override
   Future<void> cancel() async {
     try {
-      await Vibration.cancel();
+      if (kIsWeb) {
+        cancelWebHaptic();
+      } else {
+        await Vibration.cancel();
+      }
     } catch (_) {
       // Ignore cancellation failures
     }

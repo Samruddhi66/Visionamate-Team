@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/audio/tts_service.dart';
+import '../core/audio/ai_voice_service.dart';
 import '../core/speech/speech_service.dart';
 import '../core/haptics/haptic_service.dart';
 import '../core/haptics/haptic_patterns.dart';
@@ -61,7 +62,11 @@ final routingServiceProvider = Provider<RoutingService>((ref) {
 
 // TTS Service
 final ttsServiceProvider = Provider<TtsService>((ref) {
+  final prefs = ref.watch(preferencesServiceProvider);
   final service = FlutterTtsService();
+  service.setLanguage(prefs.language);
+  service.setSpeechRate(prefs.speechRate);
+  service.setVoicePersona(prefs.voicePersona);
   ref.onDispose(() => service.dispose());
   return service;
 });
@@ -118,16 +123,24 @@ final imageQaServiceProvider = Provider<ImageQaService>((ref) {
   return DefaultImageQaService(geminiService: gemini);
 });
 
+// AI Voice Service (Cloud Human Voice Provider)
+final aiVoiceServiceProvider = Provider<AiVoiceService>((ref) {
+  final prefs = ref.watch(preferencesServiceProvider);
+  return AiVoiceService(preferencesService: prefs);
+});
+
 // Unified Voice Controller Provider
 final unifiedVoiceControllerProvider = Provider<UnifiedVoiceController>((ref) {
   final tts = ref.watch(ttsServiceProvider);
   final speech = ref.watch(speechServiceProvider);
   final haptics = ref.watch(hapticServiceProvider);
+  final aiVoice = ref.watch(aiVoiceServiceProvider);
 
   final controller = UnifiedVoiceController(
     ttsService: tts,
     speechService: speech,
     hapticService: haptics,
+    aiVoiceService: aiVoice,
   );
 
   ref.onDispose(() => controller.dispose());

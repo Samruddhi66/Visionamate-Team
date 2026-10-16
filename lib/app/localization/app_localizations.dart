@@ -103,8 +103,10 @@ class AppStrings {
   final String audioCues;
   final String speechRate;
   final String testVoice;
+  final Locale locale;
 
   const AppStrings({
+    this.locale = const Locale('en'),
     required this.appTitle,
     required this.appTagline,
     required this.greetingPrefix,
@@ -188,6 +190,7 @@ class AppStrings {
 
   // English Strings
   static const AppStrings en = AppStrings(
+    locale: Locale('en'),
     appTitle: 'VisionMate 2.0',
     appTagline: 'See Beyond • Live Independently',
     greetingPrefix: 'Hello Yogeshh 👋',
@@ -271,6 +274,7 @@ class AppStrings {
 
   // Hindi (हिन्दी) Strings
   static const AppStrings hi = AppStrings(
+    locale: Locale('hi'),
     appTitle: 'VisionMate 2.0',
     appTagline: 'सीमाओं से परे देखें • स्वतंत्र जीवन जिएं',
     greetingPrefix: 'नमस्ते योगेश 👋',
@@ -354,6 +358,7 @@ class AppStrings {
 
   // Marathi (मराठी) Strings
   static const AppStrings mr = AppStrings(
+    locale: Locale('mr'),
     appTitle: 'VisionMate 2.0',
     appTagline: 'मर्यादांपलीकडे पहा • स्वावलंबी जगा',
     greetingPrefix: 'नमस्कार योगेश 👋',

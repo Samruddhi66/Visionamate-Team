@@ -31,7 +31,7 @@ class MockObjectDetectionService implements ObjectDetectionService {
   });
 
   @override
-  Future<List<DetectedObject>> detectObjects(XFile imageFile) async => detections;
+  Future<List<DetectedObject>> detectObjects(XFile imageFile, {String languageCode = 'en'}) async => detections;
 }
 
 void main() {
@@ -119,6 +119,28 @@ void main() {
 
       expect(find.text('No objects detected. Tap microphone to rescan.'), findsOneWidget);
       expect(mockTts.spokenHistory.any((s) => s.contains('No distinct physical objects')), isTrue);
+    });
+
+    testWidgets('touching or clicking anywhere on screen triggers haptic feedback and spoken guidance',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(createObjectWidget());
+      await tester.pumpAndSettle();
+
+      mockHaptics.triggeredPatterns.clear();
+
+      // Tap on upper area (Viewfinder / Detections)
+      await tester.tapAt(const Offset(200, 300));
+      await tester.pump();
+
+      expect(mockHaptics.triggeredPatterns, contains(HapticPattern.lightTap));
+      expect(
+        mockTts.spokenHistory.any((s) => s.contains('Doorway') || s.contains('Camera viewfinder')),
+        isTrue,
+      );
     });
   });
 }

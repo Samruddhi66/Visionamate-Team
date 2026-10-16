@@ -1,11 +1,9 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/localization/app_localizations.dart';
 import '../../../app/providers.dart';
 import '../../../app/theme/accessibility_tokens.dart';
 import '../../../app/theme/app_colors.dart';
-import '../../../core/camera/camera_service.dart';
 import '../../../core/haptics/haptic_patterns.dart';
 import '../../../core/storage/history_repository.dart';
 import '../../../core/widgets/live_camera_viewport.dart';
@@ -22,6 +20,8 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
   bool _isScanning = false;
   int _detectedValue = 500;
   bool _hasDetected = true;
+  int _runningWalletTotal = 500;
+  int _scannedNotesCount = 1;
 
   @override
   void initState() {
@@ -49,14 +49,19 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
     await haptics.trigger(HapticPattern.processingStarted);
     await voice.speak(strings.tapToScan);
 
-    final frame = await cameraService.takePicture() ??
-        XFile.fromData(
-          DeviceCameraService.fallbackFrameBytes,
-          mimeType: 'image/jpeg',
-          name: 'note_frame.jpg',
-        );
+    final frame = await cameraService.takePicture();
+    if (frame == null) {
+      if (!mounted) return;
+      setState(() => _isScanning = false);
+      await haptics.trigger(HapticPattern.actionError);
+      await voice.speak('Camera is not ready. Please verify camera permissions.');
+      return;
+    }
 
-    final result = await currencyService.identifyCurrency(frame);
+    final result = await currencyService.identifyCurrency(
+      frame,
+      languageCode: strings.locale.languageCode,
+    );
 
     if (!mounted) return;
 
@@ -69,19 +74,69 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
     });
 
     if (isDetected) {
+      final noteVal = result.denomination.numericValue;
+      setState(() {
+        _runningWalletTotal += noteVal;
+        _scannedNotesCount += 1;
+      });
+
       await historyRepo.addEntry(HistoryEntry(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        title: 'Currency: ₹${result.denomination.numericValue}',
+        title: 'Currency: ₹$noteVal (Total: ₹$_runningWalletTotal)',
         category: 'currency',
         content: result.spokenMessage,
         timestamp: DateTime.now(),
       ));
       await haptics.trigger(HapticPattern.actionSuccess);
+
       await voice.speak(result.spokenMessage);
     } else {
       await haptics.trigger(HapticPattern.actionError);
       final guidance = result.retryInstructions ?? 'Note not identified. Please place note flat under good light.';
       await voice.speak(result.spokenMessage.isNotEmpty ? result.spokenMessage : guidance);
+    }
+  }
+
+  String? _lastCurrencyTouchZone;
+  DateTime _lastCurrencyTouchTime = DateTime.now();
+
+  void _handleScreenTouch(Offset localPos, Size size, AppStrings strings) {
+    final normY = (localPos.dy / size.height).clamp(0.0, 1.0);
+    final isMr = strings.locale.languageCode.startsWith('mr');
+    final isHi = strings.locale.languageCode.startsWith('hi');
+
+    String zone;
+    String feedback;
+
+    if (normY < 0.60) {
+      zone = 'viewfinder';
+      feedback = isMr
+          ? 'कॅमेरा दृश्य. नोट तपासण्यासाठी सपाट ठेवा.'
+          : (isHi
+              ? 'कैमरा दृश्य। नोट पहचानने के लिए सीधा रखें।'
+              : 'Banknote camera viewfinder. Place note flat to scan.');
+    } else if (normY < 0.82) {
+      zone = 'total_value';
+      feedback = isMr
+          ? 'एकूण मूल्य: ₹$_detectedValue. ${strings.notesFound}.'
+          : (isHi
+              ? 'कुल मूल्य: ₹$_detectedValue. ${strings.notesFound}।'
+              : 'Total value: ₹$_detectedValue. ${strings.notesFound}.');
+    } else {
+      zone = 'scan_button';
+      feedback = isMr
+          ? 'स्कॅन बटण. नोट ओळखण्यासाठी दोनदा टॅप करा.'
+          : (isHi
+              ? 'स्कैन बटन। नोट पहचानने के लिए दो बार टैप करें।'
+              : 'Scan banknote button. Double tap to capture and identify.');
+    }
+
+    final now = DateTime.now();
+    if (zone != _lastCurrencyTouchZone || now.difference(_lastCurrencyTouchTime).inMilliseconds > 2200) {
+      _lastCurrencyTouchZone = zone;
+      _lastCurrencyTouchTime = now;
+      ref.read(hapticServiceProvider).trigger(HapticPattern.lightTap);
+      ref.read(unifiedVoiceControllerProvider).speak(feedback, interrupt: true);
     }
   }
 
@@ -98,6 +153,7 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          tooltip: 'Back',
           onPressed: () {
             haptics.trigger(HapticPattern.lightTap);
             Navigator.of(context).pop();
@@ -109,9 +165,16 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final screenSize = Size(constraints.maxWidth, constraints.maxHeight);
+            return Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (e) => _handleScreenTouch(e.localPosition, screenSize, strings),
+              onPointerMove: (e) => _handleScreenTouch(e.localPosition, screenSize, strings),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Banknote Viewfinder Container with Neon Focus Frame & Live Camera
@@ -262,6 +325,20 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
                         ),
                       ],
                     ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.restart_alt_rounded, color: Colors.white60),
+                      tooltip: 'Reset wallet counter ($_scannedNotesCount notes)',
+                      onPressed: () {
+                        setState(() {
+                          _runningWalletTotal = 0;
+                          _scannedNotesCount = 0;
+                          _detectedValue = 0;
+                        });
+                        ref.read(hapticServiceProvider).trigger(HapticPattern.lightTap);
+                        ref.read(unifiedVoiceControllerProvider).speak('Wallet total reset to zero.');
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -322,7 +399,10 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
+      );
+    },
+  ),
+),
+);
+}
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../audio/tts_service.dart';
+import '../audio/ai_voice_service.dart';
 import '../speech/speech_service.dart';
 import '../speech/voice_command_router.dart';
 import '../haptics/haptic_patterns.dart';
@@ -51,6 +52,7 @@ class UnifiedVoiceController extends ChangeNotifier {
   final TtsService ttsService;
   final SpeechService speechService;
   final HapticService hapticService;
+  final AiVoiceService? aiVoiceService;
 
   VoiceSessionSnapshot _snapshot = const VoiceSessionSnapshot(state: VoiceSessionState.idle);
   VoiceSessionSnapshot get snapshot => _snapshot;
@@ -69,6 +71,7 @@ class UnifiedVoiceController extends ChangeNotifier {
     required this.ttsService,
     required this.speechService,
     required this.hapticService,
+    this.aiVoiceService,
   }) {
     _initSubscriptions();
   }
@@ -158,17 +161,38 @@ class UnifiedVoiceController extends ChangeNotifier {
     _updateState(VoiceSessionState.idle, transcript: '');
   }
 
-  /// Speak accessible text safely through TTS
+  /// Speak accessible text safely through realistic AI Voice or device natural TTS
   Future<void> speak(String text, {bool interrupt = true}) async {
     // If currently listening, cancel STT before speaking
     if (_snapshot.state == VoiceSessionState.listening) {
       await speechService.cancelListening();
     }
+
+    if (interrupt) {
+      await stopSpeaking();
+    }
+
+    // Try realistic Cloud AI Voice API if configured
+    if (aiVoiceService != null && aiVoiceService!.isConfigured) {
+      _updateState(VoiceSessionState.speaking);
+      final played = await aiVoiceService!.speakWithAiVoice(
+        text,
+        onComplete: () {
+          if (_snapshot.state == VoiceSessionState.speaking) {
+            _updateState(VoiceSessionState.idle);
+          }
+        },
+      );
+      if (played) return;
+    }
+
+    // Fall back to high-fidelity on-device natural TTS
     await ttsService.speak(text, interrupt: interrupt);
   }
 
   /// Stop any active speech
   Future<void> stopSpeaking() async {
+    aiVoiceService?.stop();
     await ttsService.stop();
   }
 
