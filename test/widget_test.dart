@@ -68,7 +68,7 @@ void main() {
     expect(find.text('AI Vision'), findsOneWidget);
     expect(find.text('Cash Detector'), findsOneWidget);
     expect(find.text('Object Recognition'), findsOneWidget);
-    expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('Obstacle & Traffic Scanner'), findsOneWidget);
     expect(find.text('More'), findsOneWidget);
 
     // Verify Bottom Navigation Items

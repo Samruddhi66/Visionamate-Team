@@ -103,6 +103,7 @@ class _ObjectRecognitionScreenState extends ConsumerState<ObjectRecognitionScree
   DateTime _lastObjectTouchTime = DateTime.now();
 
   void _handleObjectTouch(Offset localPos, Size size, AppStrings strings) {
+    final normX = (localPos.dx / size.width).clamp(0.0, 1.0);
     final normY = (localPos.dy / size.height).clamp(0.0, 1.0);
     final lang = strings.locale.languageCode;
     final isMr = lang.startsWith('mr');
@@ -112,16 +113,30 @@ class _ObjectRecognitionScreenState extends ConsumerState<ObjectRecognitionScree
     String feedback;
 
     if (normY < 0.60) {
-      if (_detections.isNotEmpty) {
-        zone = 'detections_viewfinder';
-        feedback = _detections.map((d) => d.toSpokenPhrase(lang)).join('. ');
-      } else {
-        zone = 'camera_viewfinder';
+      RelativePosition targetPos = RelativePosition.centerAhead;
+      String posName = isMr ? 'थेट समोर' : (isHi ? 'सीधे सामने' : 'directly ahead');
+      if (normX < 0.33) {
+        targetPos = RelativePosition.left;
+        posName = isMr ? 'डावी बाजू' : (isHi ? 'बाईं ओर' : 'left side');
+      } else if (normX > 0.67) {
+        targetPos = RelativePosition.right;
+        posName = isMr ? 'उजवी बाजू' : (isHi ? 'दाईं ओर' : 'right side');
+      }
+
+      zone = 'viewfinder_${targetPos.name}';
+      final match = _detections.where((d) => d.position == targetPos).toList();
+      if (match.isNotEmpty) {
+        feedback = match.map((d) => d.toSpokenPhrase(lang)).join(', ');
+      } else if (_detections.isNotEmpty) {
         feedback = isMr
-            ? 'कॅमेरा दृश्य. वस्तू शोधण्यासाठी खालील माइक बटणावर टॅप करा.'
+            ? '$posName: मार्ग मोकळा आहे.'
+            : (isHi ? '$posName: रास्ता साफ है।' : '$posName: area clear.');
+      } else {
+        feedback = isMr
+            ? 'कॅमेरा दृश्य ($posName). वस्तू शोधण्यासाठी खालील माइक बटणावर टॅप करा.'
             : (isHi
-                ? 'कैमरा दृश्य। वस्तु खोजने के लिए नीचे माइक बटन पर टैप करें।'
-                : 'Camera viewfinder. Tap microphone below to identify objects.');
+                ? 'कैमरा दृश्य ($posName)। वस्तु खोजने के लिए नीचे माइक बटन पर टैप करें।'
+                : 'Camera viewfinder ($posName). Tap microphone below to identify objects.');
       }
     } else if (normY < 0.82) {
       zone = 'detections_card';
@@ -148,7 +163,7 @@ class _ObjectRecognitionScreenState extends ConsumerState<ObjectRecognitionScree
     }
 
     final now = DateTime.now();
-    if (zone != _lastObjectTouchZone || now.difference(_lastObjectTouchTime).inMilliseconds > 2200) {
+    if (zone != _lastObjectTouchZone || now.difference(_lastObjectTouchTime).inMilliseconds > 800) {
       _lastObjectTouchZone = zone;
       _lastObjectTouchTime = now;
       ref.read(hapticServiceProvider).trigger(HapticPattern.lightTap);

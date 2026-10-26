@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../app/localization/app_localizations.dart';
 import '../../../app/providers.dart';
 import '../../../app/theme/app_colors.dart';
@@ -118,36 +119,26 @@ class _EmergencyScreenState extends ConsumerState<EmergencyScreen>
 
     final voice = ref.read(unifiedVoiceControllerProvider);
     final haptics = ref.read(hapticServiceProvider);
-    final locationService = ref.read(locationServiceProvider);
-    final historyRepo = ref.read(historyRepositoryProvider);
 
     await haptics.trigger(HapticPattern.emergencyStatus);
-    await voice.speak('Emergency alert activated! Dispatching live coordinates.');
+    await voice.speak('Emergency alert activated! Dispatching live coordinates and calling emergency contact.');
 
-    final loc = await locationService.getCurrentLocation() ??
-        const UserLocation(latitude: 18.5204, longitude: 73.8567, accuracy: 5.0);
+    // Use the new EmergencyService for full dispatch: call + SMS + location share
+    await ref.read(emergencyServiceProvider).dispatchFullEmergency();
 
     final name = _nameController.text.trim();
     final phone = _phoneController.text.trim();
 
     final alertSummary =
-        'Emergency SOS Dispatched to $name ($phone).\nGPS: ${loc.latitude.toStringAsFixed(4)}, ${loc.longitude.toStringAsFixed(4)} (Accuracy: ${loc.accuracy.toInt()}m)';
+        'Emergency SOS Dispatched to $name ($phone).\nEmergency call placed, SMS with location sent, and location shared with VisionMate users.';
 
     setState(() {
       _isSending = false;
       _alertStatus = alertSummary;
     });
 
-    await historyRepo.addEntry(HistoryEntry(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: 'SOS Alert Sent: $name',
-      category: 'emergency',
-      content: alertSummary,
-      timestamp: DateTime.now(),
-    ));
-
     await haptics.trigger(HapticPattern.actionSuccess);
-    await voice.speak('SOS alert successfully sent to $name. Help is on the way.');
+    await voice.speak('Emergency complete. Emergency contact called, SMS with location sent, and location shared with VisionMate users. Help is on the way.');
   }
 
   void _showEditContactModal() {

@@ -105,6 +105,10 @@ class CurrencyDetectionResult {
   final bool isConfident;
   final String spokenMessage;
   final String? retryInstructions;
+  final String? noteSide; // Front / Back
+  final String? noteColor; // Stone Grey, Lavender, etc.
+  final String? physicalCondition; // Crisp, folded, etc.
+  final String? touchGuidance; // Centered, tilted, etc.
 
   const CurrencyDetectionResult({
     required this.denomination,
@@ -112,6 +116,10 @@ class CurrencyDetectionResult {
     required this.isConfident,
     required this.spokenMessage,
     this.retryInstructions,
+    this.noteSide,
+    this.noteColor,
+    this.physicalCondition,
+    this.touchGuidance,
   });
 }
 
@@ -161,28 +169,41 @@ class DefaultCurrencyDetectionService implements CurrencyDetectionService {
 
       if (geminiService != null && geminiService!.preferencesService.hasGeminiApiKey) {
         final langInstruction = isMr
-            ? 'The "spokenMessage" field MUST be in natural, grammatically correct spoken Marathi (मराठी) for text-to-speech. For example "ही ५०० रुपयांची नोट आहे" or "१०० रुपयांची नोट ओळखली." The "retryInstructions" should also be in Marathi.'
+            ? 'The "spokenMessage" field MUST be in natural, grammatically correct, human-sounding spoken Marathi (मराठी) for text-to-speech. '
+                'Give full details: denomination, note color, which side (front/back), and note condition. '
+                'Example: "ही ५०० रुपयांची नवीन सिरीजची राखाडी नोट आहे. समोरची बाजू दिसत आहे. नोट स्वच्छ आणि सपाट आहे."'
             : (isHi
-                ? 'The "spokenMessage" field MUST be in natural, grammatically correct spoken Hindi (हिंदी) for text-to-speech. For example "यह ५०० रुपये का नोट है" or "१०० रुपये का नोट पहचाना गया।" The "retryInstructions" should also be in Hindi.'
-                : 'The "spokenMessage" field MUST be in clear spoken English for text-to-speech, e.g. "500 Rupee note detected."');
+                ? 'The "spokenMessage" field MUST be in natural, grammatically correct, human-sounding spoken Hindi (हिंदी) for text-to-speech. '
+                    'Give full details: denomination, note color, side (front/back), and note condition. '
+                    'Example: "यह ५०० रुपये का नया स्टोन ग्रे नोट है। सामने का हिस्सा दिख रहा है। नोट साफ और सीधा है।"'
+                : 'The "spokenMessage" field MUST be in natural spoken English with full details: denomination, color, side (front/back), and condition, e.g. "500 Rupee stone grey note detected. Front side with Gandhi portrait. Note is crisp and centered."');
 
-        final prompt = 'You are an assistive currency identifier for a blind user in India. '
+        final prompt = 'You are an assistive currency identifier for a visually impaired user in India. '
             'Examine this camera frame and identify the Indian Rupee (INR) banknote denomination '
             '(Mahatma Gandhi New Series: ₹10, ₹20, ₹50, ₹100, ₹200, ₹500).\n'
-            'Check color, visible numbers, motifs, and size.\n'
-            '$langInstruction\n'
-            'Respond ONLY with a valid JSON object in this format:\n'
+            'Identify:\n'
+            '1. Denomination: 10, 20, 50, 100, 200, 500, or 0 if uncertain.\n'
+            '2. Side: "Front (Mahatma Gandhi portrait)" or "Back (Monument: Red Fort/Sanchi Stupa/Ellora/Hampi/Rani ki Vav/Konark)"\n'
+            '3. Color: Stone Grey (₹500), Bright Yellow (₹200), Lavender (₹100), Cyan (₹50), Greenish Yellow (₹20), Chocolate Brown (₹10)\n'
+            '4. Condition: crisp/flat, folded, creased, or partial view\n'
+            '5. Touch guidance: "center", "left", "right", "too close", "too far"\n'
+            '$langInstruction\n\n'
+            'Respond ONLY with a valid JSON object in this format without markdown backticks:\n'
             '{\n'
             '  "denomination": 10 | 20 | 50 | 100 | 200 | 500 | 0,\n'
             '  "confidence": 0.0 to 1.0,\n'
-            '  "spokenMessage": "Voice announcement in requested language",\n'
-            '  "retryInstructions": "Guidance in requested language if banknote is blurry, folded, or unclear"\n'
+            '  "noteSide": "front | back",\n'
+            '  "noteColor": "Stone Grey | Bright Yellow | Lavender | Cyan | Greenish Yellow | Chocolate Brown",\n'
+            '  "physicalCondition": "flat | folded | creased | partial",\n'
+            '  "touchGuidance": "center | left | right | tilted",\n'
+            '  "spokenMessage": "Voice announcement in requested language with full details",\n'
+            '  "retryInstructions": "Guidance in requested language if banknote is blurry or folded"\n'
             '}';
 
         final response = await geminiService!.askGemini(
           prompt: prompt,
           imageBytes: bytes,
-          maxTokens: 180,
+          maxTokens: 220,
           mimeType: 'image/jpeg',
         );
 
@@ -248,6 +269,10 @@ class DefaultCurrencyDetectionService implements CurrencyDetectionService {
       final conf = map['confidence'] is num ? (map['confidence'] as num).toDouble() : 0.85;
       final spokenMsg = map['spokenMessage']?.toString() ?? '';
       final retry = map['retryInstructions']?.toString();
+      final side = map['noteSide']?.toString();
+      final color = map['noteColor']?.toString();
+      final condition = map['physicalCondition']?.toString();
+      final touchGuide = map['touchGuidance']?.toString();
 
       final denom = _mapDenomination(denomValue);
       final isConfident = denom != RupeeDenomination.uncertain && conf >= confidenceThreshold;
@@ -269,6 +294,10 @@ class DefaultCurrencyDetectionService implements CurrencyDetectionService {
         isConfident: isConfident,
         spokenMessage: finalSpoken,
         retryInstructions: retry,
+        noteSide: side,
+        noteColor: color,
+        physicalCondition: condition,
+        touchGuidance: touchGuide,
       );
     } catch (e) {
       debugPrint('[CurrencyDetectionService] JSON parse fallback: $e');

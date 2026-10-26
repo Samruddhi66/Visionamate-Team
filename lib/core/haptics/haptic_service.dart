@@ -62,6 +62,7 @@ class DeviceHapticService implements HapticService {
           case HapticPattern.lightTap:
           case HapticPattern.buttonTap:
           case HapticPattern.selectionClick:
+          case HapticPattern.apiKeyVerified:
             await HapticFeedback.selectionClick();
             break;
           case HapticPattern.actionSuccess:
@@ -81,6 +82,9 @@ class DeviceHapticService implements HapticService {
           case HapticPattern.navigationTurnRight:
           case HapticPattern.destinationArrival:
             await HapticFeedback.vibrate();
+            break;
+          default:
+            await HapticFeedback.selectionClick();
             break;
         }
       }

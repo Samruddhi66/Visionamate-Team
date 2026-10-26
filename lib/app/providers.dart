@@ -19,6 +19,7 @@ import '../features/ocr/services/ocr_service.dart';
 import '../features/currency_detection/services/currency_detection_service.dart';
 import '../features/object_recognition/services/object_detection_service.dart';
 import '../features/image_qa/services/image_qa_service.dart';
+import '../features/emergency/services/emergency_service.dart';
 import '../core/network/gemini_service.dart';
 import 'theme/app_theme.dart';
 
@@ -95,6 +96,20 @@ final safetyAlertManagerProvider = Provider<SafetyAlertManager>((ref) {
 final geminiVisionServiceProvider = Provider<GeminiVisionService>((ref) {
   final prefs = ref.watch(preferencesServiceProvider);
   return GeminiVisionService(preferencesService: prefs);
+});
+
+// Emergency Service (Real phone calls, SMS, location sharing)
+final emergencyServiceProvider = Provider<EmergencyService>((ref) {
+  final prefs = ref.watch(preferencesServiceProvider);
+  final historyRepo = ref.watch(historyRepositoryProvider);
+  final tts = ref.watch(ttsServiceProvider);
+  final haptics = ref.watch(hapticServiceProvider);
+  return EmergencyService(
+    prefs: prefs,
+    historyRepo: historyRepo,
+    tts: tts,
+    haptics: haptics,
+  );
 });
 
 // AI & Vision Inference Services

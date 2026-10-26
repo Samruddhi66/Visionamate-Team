@@ -23,6 +23,8 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
   int _runningWalletTotal = 500;
   int _scannedNotesCount = 1;
 
+  CurrencyDetectionResult? _lastResult;
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +73,7 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
       _isScanning = false;
       _hasDetected = isDetected;
       _detectedValue = isDetected ? result.denomination.numericValue : 0;
+      _lastResult = result;
     });
 
     if (isDetected) {
@@ -101,6 +104,7 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
   DateTime _lastCurrencyTouchTime = DateTime.now();
 
   void _handleScreenTouch(Offset localPos, Size size, AppStrings strings) {
+    final normX = (localPos.dx / size.width).clamp(0.0, 1.0);
     final normY = (localPos.dy / size.height).clamp(0.0, 1.0);
     final isMr = strings.locale.languageCode.startsWith('mr');
     final isHi = strings.locale.languageCode.startsWith('hi');
@@ -108,31 +112,50 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
     String zone;
     String feedback;
 
-    if (normY < 0.60) {
-      zone = 'viewfinder';
-      feedback = isMr
-          ? 'कॅमेरा दृश्य. नोट तपासण्यासाठी सपाट ठेवा.'
-          : (isHi
-              ? 'कैमरा दृश्य। नोट पहचानने के लिए सीधा रखें।'
-              : 'Banknote camera viewfinder. Place note flat to scan.');
-    } else if (normY < 0.82) {
+    if (normY < 0.58) {
+      if (normX < 0.33) {
+        zone = 'viewfinder_left';
+        feedback = isMr
+            ? 'कॅमेऱ्याची डावी बाजू. नोट मध्यभागी आणा.'
+            : (isHi ? 'कैमरे की बाईं ओर। नोट को केंद्र में लाएं।' : 'Left viewfinder area. Center the banknote.');
+      } else if (normX > 0.67) {
+        zone = 'viewfinder_right';
+        feedback = isMr
+            ? 'कॅमेऱ्याची उजवी बाजू. नोट मध्यभागी आणा.'
+            : (isHi ? 'कैमरे की दाईं ओर। नोट को केंद्र में लाएं।' : 'Right viewfinder area. Center the banknote.');
+      } else {
+        zone = 'viewfinder_center';
+        if (_hasDetected && _lastResult != null) {
+          final sideInfo = _lastResult!.noteSide != null ? ' (${_lastResult!.noteSide})' : '';
+          feedback = isMr
+              ? 'कॅमेरा दृश्य मध्यभाग: ₹$_detectedValue ची नोट ओळखली आहे$sideInfo.'
+              : (isHi
+                  ? 'कैमरा दृश्य केंद्र: ₹$_detectedValue का नोट पहचाना गया है$sideInfo।'
+                  : 'Banknote camera viewfinder: ₹$_detectedValue note detected$sideInfo.');
+        } else {
+          feedback = isMr
+              ? 'कॅमेरा दृश्य मध्यभाग: नोट तपासण्यासाठी सपाट धरा.'
+              : (isHi ? 'कैमरा दृश्य केंद्र: नोट पहचानने के लिए सीधा रखें।' : 'Banknote camera viewfinder. Place note flat to scan.');
+        }
+      }
+    } else if (normY < 0.80) {
       zone = 'total_value';
       feedback = isMr
-          ? 'एकूण मूल्य: ₹$_detectedValue. ${strings.notesFound}.'
+          ? 'एकूण पाकीट मूल्य: ₹$_runningWalletTotal. एकूण $_scannedNotesCount नोटा मोजल्या.'
           : (isHi
-              ? 'कुल मूल्य: ₹$_detectedValue. ${strings.notesFound}।'
-              : 'Total value: ₹$_detectedValue. ${strings.notesFound}.');
+              ? 'कुल वॉलेट मूल्य: ₹$_runningWalletTotal. कुल $_scannedNotesCount नोट गिने गए।'
+              : 'Total wallet value: ₹$_runningWalletTotal. Scanned $_scannedNotesCount notes.');
     } else {
       zone = 'scan_button';
       feedback = isMr
-          ? 'स्कॅन बटण. नोट ओळखण्यासाठी दोनदा टॅप करा.'
+          ? 'स्कॅन बटण. नवीन नोट तपासण्यासाठी दोनदा टॅप करा.'
           : (isHi
-              ? 'स्कैन बटन। नोट पहचानने के लिए दो बार टैप करें।'
-              : 'Scan banknote button. Double tap to capture and identify.');
+              ? 'स्कैन बटन। नया नोट पहचानने के लिए दो बार टैप करें।'
+              : 'Scan button. Double tap to scan new banknote.');
     }
 
     final now = DateTime.now();
-    if (zone != _lastCurrencyTouchZone || now.difference(_lastCurrencyTouchTime).inMilliseconds > 2200) {
+    if (zone != _lastCurrencyTouchZone || now.difference(_lastCurrencyTouchTime).inMilliseconds > 900) {
       _lastCurrencyTouchZone = zone;
       _lastCurrencyTouchTime = now;
       ref.read(hapticServiceProvider).trigger(HapticPattern.lightTap);

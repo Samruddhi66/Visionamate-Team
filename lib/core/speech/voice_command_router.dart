@@ -8,10 +8,11 @@ enum VoiceActionType {
   navigateToPlace,
   stopSpeaking,
   repeatLast,
-  cancelOperation,
   openSettings,
   emergencySos,
   imageQa,
+  scanObstaclesAndTraffic,
+  cancelOperation,
   help,
   unknown,
 }
@@ -93,6 +94,34 @@ class VoiceCommandRouter {
       );
     }
 
+    // Obstacle & Traffic Detection
+    if (cleaned.contains('obstacle') ||
+        cleaned.contains('traffic') ||
+        cleaned.contains('hazard') ||
+        cleaned.contains('stairs') ||
+        cleaned.contains('crossing') ||
+        cleaned.contains('vehicle') ||
+        cleaned.contains('signal') ||
+        cleaned.contains('अडथळा') ||
+        cleaned.contains('अडथळे') ||
+        cleaned.contains('ट्रॅफिक') ||
+        cleaned.contains('वाहतूक') ||
+        cleaned.contains('पायऱ्या') ||
+        cleaned.contains('बाधा') ||
+        cleaned.contains('गाड़ियां') ||
+        cleaned.contains('what is ahead') ||
+        cleaned.contains('is the way clear') ||
+        cleaned.contains('can i walk') ||
+        cleaned.contains('safe to walk') ||
+        cleaned.contains('check path') ||
+        cleaned.contains('check the way')) {
+      return ParsedVoiceCommand(
+        actionType: VoiceActionType.scanObstaclesAndTraffic,
+        rawSpokenText: input,
+        confidence: confidence,
+      );
+    }
+
     // Describe Surroundings / Scene Understanding
     if (cleaned.contains('describe') ||
         cleaned.contains('surrounding') ||
@@ -102,7 +131,12 @@ class VoiceCommandRouter {
         cleaned.contains('what is around') ||
         cleaned.contains('view surroundings') ||
         cleaned.contains('आसपास काय आहे') ||
-        cleaned.contains('सामने क्या है')) {
+        cleaned.contains('सामने क्या है') ||
+        cleaned.contains('look around') ||
+        cleaned.contains('look ahead') ||
+        cleaned.contains('see what is there') ||
+        cleaned.contains('what do you see') ||
+        cleaned.contains('where am i')) {
       return ParsedVoiceCommand(
         actionType: VoiceActionType.describeSurroundings,
         rawSpokenText: input,
@@ -118,7 +152,12 @@ class VoiceCommandRouter {
         cleaned.contains('ocr') ||
         cleaned.contains('वाचा') ||
         cleaned.contains('पढ़ो') ||
-        cleaned.contains('बोर्ड वाचा')) {
+        cleaned.contains('बोर्ड वाचा') ||
+        cleaned.contains('read this') ||
+        cleaned.contains('what does this say') ||
+        cleaned.contains('tell me what this is') ||
+        cleaned.contains('read to me') ||
+        cleaned.contains('name of this')) {
       return ParsedVoiceCommand(
         actionType: VoiceActionType.readText,
         rawSpokenText: input,
@@ -136,7 +175,9 @@ class VoiceCommandRouter {
         cleaned.contains('cash detector') ||
         cleaned.contains('पैसे') ||
         cleaned.contains('रुपये') ||
-        cleaned.contains('नोट')) {
+        cleaned.contains('नोट') ||
+        cleaned.contains('how much is this') ||
+        cleaned.contains('value of this note')) {
       return ParsedVoiceCommand(
         actionType: VoiceActionType.identifyCurrency,
         rawSpokenText: input,
@@ -159,7 +200,9 @@ class VoiceCommandRouter {
         cleaned.contains('ही वस्तू काय आहे') ||
         cleaned.contains('यह वस्तु क्या है') ||
         cleaned.contains('वस्तू शोधा') ||
-        cleaned.contains('वस्तु पहचानो')) {
+        cleaned.contains('वस्तु पहचानो') ||
+        cleaned.contains('identify this') ||
+        cleaned.contains('what am i holding')) {
       return ParsedVoiceCommand(
         actionType: VoiceActionType.identifyObject,
         rawSpokenText: input,
@@ -172,7 +215,9 @@ class VoiceCommandRouter {
         cleaned.contains('question') ||
         cleaned.contains('what color') ||
         cleaned.contains('what is on the') ||
-        cleaned.contains('कशाबद्दल आहे')) {
+        cleaned.contains('कशाबद्दल आहे') ||
+        cleaned.contains('tell me about') ||
+        cleaned.contains('details about')) {
       return ParsedVoiceCommand(
         actionType: VoiceActionType.imageQa,
         rawSpokenText: input,
@@ -227,6 +272,15 @@ class VoiceCommandRouter {
     if (cleaned.contains('help') || cleaned.contains('मदत') || cleaned.contains('सहायता')) {
       return ParsedVoiceCommand(
         actionType: VoiceActionType.help,
+        rawSpokenText: input,
+        confidence: confidence,
+      );
+    }
+
+    // Cancel Operation
+    if (cleaned.contains('cancel') || cleaned.contains('रद्द करा') || cleaned.contains('रद्द करो') || cleaned.contains('बंद करा')) {
+      return ParsedVoiceCommand(
+        actionType: VoiceActionType.cancelOperation,
         rawSpokenText: input,
         confidence: confidence,
       );

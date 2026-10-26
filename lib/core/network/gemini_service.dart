@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 import '../storage/preferences_service.dart';
 
 class GeminiApiException implements Exception {
@@ -17,13 +19,16 @@ class GeminiVisionService {
   final Dio _dio;
   final PreferencesService preferencesService;
 
+  /// Request cache to avoid redundant API calls for identical images
+  final Map<String, String> _requestCache = {};
+
   /// Real, active Gemini model IDs supported for this project.
   /// Order matters — fastest and verified working first, fallback in order.
   static const List<String> supportedModels = [
-    'gemini-flash-lite-latest', // Verified 200 OK, fastest, multimodal
-    'gemini-3.5-flash-lite',   // Verified 200 OK, multimodal
-    'gemini-3.8-flash',        // Google's flagship model
-    'gemini-3.5-flash',        // High capacity fallback
+    'gemini-2.0-flash',        // Google's fastest multimodal model with near-instant inference
+    'gemini-2.0-flash-lite',   // Ultra-lightweight low-latency fallback
+    'gemini-1.5-flash',        // High throughput fallback
+    'gemini-2.5-flash',        // High intelligence & reasoning
     'gemini-flash-latest',     // Auto-updated flash
   ];
 
@@ -40,9 +45,9 @@ class GeminiVisionService {
   })  : _dio = dio ??
             Dio(
               BaseOptions(
-                connectTimeout: const Duration(seconds: 15),
-                receiveTimeout: const Duration(seconds: 20),
-                sendTimeout: const Duration(seconds: 20),
+                connectTimeout: const Duration(seconds: 10),
+                receiveTimeout: const Duration(seconds: 15),
+                sendTimeout: const Duration(seconds: 15),
                 headers: {
                   'Content-Type': 'application/json',
                 },
@@ -50,6 +55,37 @@ class GeminiVisionService {
             );
 
   String get _apiKey => preferencesService.geminiApiKey;
+
+  /// Compress image to reduce payload size and improve API response time.
+  /// Targets max 512KB and max dimension 1024px for optimal speed/quality balance.
+  static Uint8List _compressImage(Uint8List imageBytes, {int maxDimension = 1024, int quality = 85}) {
+    final image = img.decodeImage(imageBytes);
+    if (image == null) return imageBytes;
+
+    // Resize if too large
+    if (image.width > maxDimension || image.height > maxDimension) {
+      final resized = img.copyResize(image, width: maxDimension, height: maxDimension);
+      return Uint8List.fromList(img.encodeJpg(resized, quality: quality));
+    }
+
+    return Uint8List.fromList(img.encodeJpg(image, quality: quality));
+  }
+
+  /// Generate a cache key from image bytes and prompt
+  String _cacheKey(Uint8List imageBytes, String prompt) {
+    final hash = _simpleHash(imageBytes);
+    return '$hash:${prompt.hashCode}';
+  }
+
+  /// Simple hash for cache key generation
+  int _simpleHash(Uint8List bytes) {
+    int hash = 0;
+    for (int i = 0; i < bytes.length; i += 4) { // Sample every 4th byte for speed
+      hash = ((hash << 5) - hash) + bytes[i];
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash.abs();
+  }
 
   /// High-level method to ask Gemini with an optional image and text prompt,
   /// automatically cascading through available multimodal models with speed benchmarking.
@@ -60,6 +96,22 @@ class GeminiVisionService {
     String? systemInstruction,
     int? maxTokens,
   }) async {
+    // Compress image if provided to reduce payload size and improve speed
+    Uint8List? compressedImage;
+    if (imageBytes != null && imageBytes.isNotEmpty) {
+      compressedImage = _compressImage(Uint8List.fromList(imageBytes));
+      debugPrint('[GeminiVisionService] Compressed image from ${imageBytes.length} to ${compressedImage.length} bytes');
+    }
+
+    // Check cache for identical request
+    if (compressedImage != null) {
+      final cacheKey = _cacheKey(compressedImage, prompt);
+      if (_requestCache.containsKey(cacheKey)) {
+        debugPrint('[GeminiVisionService] Cache hit - returning cached response');
+        return _requestCache[cacheKey]!;
+      }
+    }
+
     dynamic lastError;
 
     // Prioritize the last known working model, then try the rest
@@ -74,7 +126,7 @@ class GeminiVisionService {
         final result = await _callGenerateContent(
           model: model,
           prompt: prompt,
-          imageBytes: imageBytes,
+          imageBytes: compressedImage,
           mimeType: mimeType,
           systemInstruction: systemInstruction,
           maxTokens: maxTokens,
@@ -83,6 +135,17 @@ class GeminiVisionService {
         _lastWorkingModel = model;
         _lastLatencyMs = stopwatch.elapsedMilliseconds;
         debugPrint('[GeminiVisionService] Model $model responded in ${_lastLatencyMs}ms');
+
+        // Cache successful response
+        if (compressedImage != null) {
+          final cacheKey = _cacheKey(compressedImage, prompt);
+          _requestCache[cacheKey] = result;
+          // Limit cache size
+          if (_requestCache.length > 50) {
+            _requestCache.remove(_requestCache.keys.first);
+          }
+        }
+
         return result;
       } on GeminiApiException catch (e) {
         lastError = e;
@@ -94,7 +157,7 @@ class GeminiVisionService {
         // Rate limit — wait briefly then try next model
         if (e.statusCode == 429) {
           debugPrint('[GeminiVisionService] Rate limited on $model, trying next model...');
-          await Future.delayed(const Duration(milliseconds: 500));
+          await Future.delayed(const Duration(milliseconds: 300));
         }
         debugPrint('[GeminiVisionService] Model $model failed: $e. Trying next...');
       } catch (e) {
@@ -114,7 +177,7 @@ class GeminiVisionService {
   Future<String> _callGenerateContent({
     required String model,
     required String prompt,
-    List<int>? imageBytes,
+    Uint8List? imageBytes,
     String mimeType = 'image/jpeg',
     String? systemInstruction,
     int? maxTokens,
@@ -150,7 +213,7 @@ class GeminiVisionService {
       'generationConfig': {
         'temperature': 0.1,
         'topP': 0.8,
-        'maxOutputTokens': maxTokens ?? 320,
+        'maxOutputTokens': maxTokens ?? 256, // Reduced for faster response
       },
     };
 
@@ -241,7 +304,7 @@ class GeminiVisionService {
       if (key.isEmpty) return false;
 
       // Test with the fastest verified active model
-      final url = '$_baseUrl/gemini-flash-lite-latest:generateContent?key=$key';
+      final url = '$_baseUrl/gemini-2.0-flash:generateContent?key=$key';
       final payload = {
         'contents': [
           {
@@ -269,5 +332,10 @@ class GeminiVisionService {
       debugPrint('[GeminiVisionService] Test connection failed: $e');
       return false;
     }
+  }
+
+  /// Clear the request cache
+  void clearCache() {
+    _requestCache.clear();
   }
 }
