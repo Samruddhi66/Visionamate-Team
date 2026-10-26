@@ -38,6 +38,24 @@ enum HapticPattern {
 
   /// Strong rhythmic pulses signaling active emergency mode
   emergencyStatus,
+
+  /// Gentle confirmation when API key is verified
+  apiKeyVerified,
+
+  /// Subtle double-tap for navigation starting
+  navigationStarted,
+
+  /// Single rising pulse for "scanning" or "analyzing"
+  scanningStarted,
+
+  /// Gentle descending pattern when analysis completes
+  analysisComplete,
+
+  /// Soft pulse when voice recognition confirms a command
+  commandRecognized,
+
+  /// Gentle pulse for low battery or network warnings
+  systemNotice,
 }
 
 extension HapticPatternDetails on HapticPattern {
@@ -69,6 +87,18 @@ extension HapticPatternDetails on HapticPattern {
         return 'Hazard alert! Possible obstacle ahead';
       case HapticPattern.emergencyStatus:
         return 'Emergency alert active';
+      case HapticPattern.apiKeyVerified:
+        return 'API key verified successfully';
+      case HapticPattern.navigationStarted:
+        return 'Navigation started';
+      case HapticPattern.scanningStarted:
+        return 'Scanning started';
+      case HapticPattern.analysisComplete:
+        return 'Analysis complete';
+      case HapticPattern.commandRecognized:
+        return 'Command recognized';
+      case HapticPattern.systemNotice:
+        return 'Notice';
     }
   }
 
@@ -100,6 +130,18 @@ extension HapticPatternDetails on HapticPattern {
         return [0, 250, 80, 250, 80, 300];
       case HapticPattern.emergencyStatus:
         return [0, 500, 200, 500, 200, 500];
+      case HapticPattern.apiKeyVerified:
+        return [0, 80, 100, 120];
+      case HapticPattern.navigationStarted:
+        return [0, 100, 80, 100];
+      case HapticPattern.scanningStarted:
+        return [0, 60, 60, 60];
+      case HapticPattern.analysisComplete:
+        return [0, 80, 60, 60];
+      case HapticPattern.commandRecognized:
+        return [0, 50, 50, 50];
+      case HapticPattern.systemNotice:
+        return [0, 100];
     }
   }
 }

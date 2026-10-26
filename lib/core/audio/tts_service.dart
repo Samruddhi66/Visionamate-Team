@@ -41,8 +41,11 @@ class FlutterTtsService implements TtsService {
   String _currentPersona = 'warm_female';
   String _currentLocale = 'en-US';
   double _currentPitch = 1.04;
-  double _currentSpeechRate = 0.48;
+  double _currentSpeechRate = 0.55; // Increased for faster, more natural speech
   bool _isInitialized = false;
+  
+  /// Cache for synthesized audio to avoid redundant API calls
+  final Map<String, String> _audioCache = {};
 
   FlutterTtsService({FlutterTts? flutterTts}) : _flutterTts = flutterTts ?? FlutterTts();
 
@@ -138,6 +141,7 @@ class FlutterTtsService implements TtsService {
       await _flutterTts.setVolume(1.0);
       await _flutterTts.setPitch(_currentPitch);
       await _flutterTts.setLanguage(_currentLocale);
+      await _flutterTts.setEngine('google-tts');
 
       // On iOS, configure audio category to speak even when device is on silent
       if (!kIsWeb) {
@@ -164,7 +168,15 @@ class FlutterTtsService implements TtsService {
   /// Automatically locates, ranks, and assigns the best neural/natural voice available on the device.
   Future<void> _applyBestNaturalVoice({String? targetLocale, String? persona}) async {
     try {
-      final voicesData = await _flutterTts.getVoices;
+      var voicesData = await _flutterTts.getVoices;
+      if (kIsWeb) {
+        // Browser voices (Chrome/Edge/Safari) load asynchronously from Web Speech API
+        for (int i = 0; i < 4; i++) {
+          if (voicesData != null && voicesData is List && voicesData.isNotEmpty) break;
+          await Future.delayed(Duration(milliseconds: 200 + (i * 200)));
+          voicesData = await _flutterTts.getVoices;
+        }
+      }
       if (voicesData == null || voicesData is! List || voicesData.isEmpty) {
         return;
       }
@@ -186,10 +198,24 @@ class FlutterTtsService implements TtsService {
       if (voices.isEmpty) return;
 
       // Filter by language code
-      final matchingVoices = voices.where((v) {
+      var matchingVoices = voices.where((v) {
         final vLoc = v['locale']?.toLowerCase() ?? '';
         return vLoc.startsWith(langPrefix) || vLoc.contains(langPrefix);
       }).toList();
+
+      // If Marathi is selected but no specific mr-IN voice is on device, fallback to Indian Hindi neural voices (Swara, Madhur, Aarav, Kalpana)
+      if (matchingVoices.isEmpty && langPrefix == 'mr') {
+        matchingVoices = voices.where((v) {
+          final vLoc = v['locale']?.toLowerCase() ?? '';
+          final vName = v['name']?.toLowerCase() ?? '';
+          return vLoc.startsWith('hi') ||
+              vLoc.contains('india') ||
+              vName.contains('hindi') ||
+              vName.contains('swara') ||
+              vName.contains('madhur') ||
+              vName.contains('aarav');
+        }).toList();
+      }
 
       final pool = matchingVoices.isNotEmpty ? matchingVoices : voices;
 
@@ -198,51 +224,68 @@ class FlutterTtsService implements TtsService {
       final wantsMale = personaKey.contains('male');
 
       Map<String, String>? bestVoice;
-      int highestScore = -100;
+      int highestScore = -200;
 
       for (final v in pool) {
         final nameLower = v['name']!.toLowerCase();
         int score = 0;
 
         // Neural, natural, and cloud voice indicators
-        if (nameLower.contains('natural')) score += 60;
-        if (nameLower.contains('online')) score += 50;
-        if (nameLower.contains('neural')) score += 55;
-        if (nameLower.contains('wavenet')) score += 45;
-        if (nameLower.contains('google')) score += 35;
-        if (nameLower.contains('premium')) score += 40;
-        if (nameLower.contains('enhanced')) score += 35;
-        if (nameLower.contains('siri')) score += 30;
+        if (nameLower.contains('natural')) score += 95;
+        if (nameLower.contains('neural')) score += 90;
+        if (nameLower.contains('online')) score += 85;
+        if (nameLower.contains('wavenet')) score += 80;
+        if (nameLower.contains('google')) score += 75;
+        if (nameLower.contains('premium')) score += 55;
+        if (nameLower.contains('enhanced')) score += 50;
+        if (nameLower.contains('siri')) score += 40;
 
-        // Named high quality natural personas
+        // Named high quality natural Indian, Marathi, and Hindi personas
+        if (nameLower.contains('swara') || nameLower.contains('aarav')) {
+          score += (langPrefix == 'mr') ? 130 : 90;
+        }
+        if (nameLower.contains('madhur') || nameLower.contains('kalpana')) {
+          score += (langPrefix == 'hi') ? 130 : 90;
+        }
+        if (nameLower.contains('neerja') || nameLower.contains('prabhat')) {
+          score += 85;
+        }
+        if (nameLower.contains('marathi') || nameLower.contains('मराठी')) {
+          score += 150;
+        }
+        if (nameLower.contains('hindi') || nameLower.contains('हिन्दी')) {
+          score += 120;
+        }
+
+        // Named high quality natural English personas
         if (nameLower.contains('jenny') || nameLower.contains('aria')) {
-          score += wantsFemale ? 40 : 10;
+          score += wantsFemale ? 55 : 25;
         }
-        if (nameLower.contains('guy') || nameLower.contains('david') || nameLower.contains('alex')) {
-          score += wantsMale ? 40 : 10;
-        }
-        if (nameLower.contains('swara') || nameLower.contains('madhur') || nameLower.contains('aarav')) {
-          score += 35;
+        if (nameLower.contains('guy') || nameLower.contains('alex')) {
+          score += wantsMale ? 55 : 25;
         }
 
         // Gender preference weighting
         if (wantsFemale &&
             (nameLower.contains('female') ||
                 nameLower.contains('woman') ||
-                nameLower.contains('zira') ||
                 nameLower.contains('samantha'))) {
           score += 25;
         }
         if (wantsMale &&
             (nameLower.contains('male') ||
-                nameLower.contains('man') ||
-                nameLower.contains('george'))) {
+                nameLower.contains('man'))) {
           score += 25;
         }
 
-        // Penalize robotic legacy synthesizers
-        if (nameLower.contains('desktop') && !nameLower.contains('natural')) {
-          score -= 20;
+        // Heavily penalize harsh mechanical desktop/legacy synthesizers
+        if (nameLower.contains('desktop') ||
+            nameLower.contains('david') ||
+            nameLower.contains('zira') ||
+            nameLower.contains('george') ||
+            nameLower.contains('mark') ||
+            nameLower.contains('espeak')) {
+          score -= 150;
         }
 
         if (score > highestScore) {
@@ -371,18 +414,36 @@ class FlutterTtsService implements TtsService {
     // Apply nuanced pitch and pacing according to the selected persona
     if (persona == 'warm_female') {
       _currentPitch = 1.04; // Friendly, warm, natural feminine presence
-      _currentSpeechRate = 0.48; // Calm, conversational pacing
+      _currentSpeechRate = 0.55; // Faster, more natural conversational pacing
     } else if (persona == 'clear_male') {
       _currentPitch = 0.96; // Grounded, clear, natural masculine presence
-      _currentSpeechRate = 0.48;
+      _currentSpeechRate = 0.55;
     } else {
       _currentPitch = 1.0;
-      _currentSpeechRate = 0.50;
+      _currentSpeechRate = 0.55;
     }
-
+    
+    // Clear audio cache when persona changes to avoid stale voices
+    _audioCache.clear();
+    
     await _flutterTts.setPitch(_currentPitch);
     await _flutterTts.setSpeechRate(_currentSpeechRate);
     await _applyBestNaturalVoice(persona: persona);
+  }
+  
+  /// Pre-warms the TTS engine to reduce first-speech latency
+  Future<void> _prewarmTts() async {
+    try {
+      await _flutterTts.speak(' '); // Warm up the engine
+      await _flutterTts.stop();
+    } catch (e) {
+      // Ignore warm-up errors
+    }
+  }
+  
+  /// Clear cached audio to free memory
+  void clearAudioCache() {
+    _audioCache.clear();
   }
 
   @override

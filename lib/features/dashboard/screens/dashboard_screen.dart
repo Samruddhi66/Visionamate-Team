@@ -64,7 +64,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444)),
+              title: Text(strings.obstacleTrafficScanner, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: Text(strings.obstacleTrafficSubtitle, style: const TextStyle(color: AppColors.textSecondaryDark)),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/obstacle-traffic');
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.document_scanner_rounded, color: Color(0xFF00ACC1)),
               title: Text(strings.readText, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -90,6 +98,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               onTap: () {
                 Navigator.pop(ctx);
                 context.push('/saved');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_rounded, color: Color(0xFF3B82F6)),
+              title: Text(strings.settings, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: Text(strings.settingsSubtitle, style: const TextStyle(color: AppColors.textSecondaryDark)),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/settings');
               },
             ),
             ListTile(
@@ -140,7 +157,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     } else if (normY < 0.18) {
       zone = 'greeting';
       feedback = '${strings.greetingPrefix}. ${strings.helpPrompt}';
-    } else if (normY < 0.35) {
+    } else if (normY < 0.34) {
       zone = 'hero_assistant';
       feedback = isMr
           ? 'व्हॉइस असिस्टंट: बोलण्यासाठी किंवा जेमिनीला विचारण्यासाठी टॅप करा.'
@@ -149,7 +166,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               : 'Voice Assistant hero card: Tap to speak voice commands or ask questions.');
     } else if (normY < 0.88) {
       final isLeft = normX < 0.50;
-      if (normY < 0.53) {
+      if (normY < 0.52) {
         if (isLeft) {
           zone = 'card_navigation';
           feedback = isMr
@@ -165,7 +182,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ? 'एआई विज़न कार्ड: वास्तविक दृश्य और बाधा जांच के लिए टैप करें।'
                   : 'AI Vision card: Real-time scene and obstacle analysis.');
         }
-      } else if (normY < 0.71) {
+      } else if (normY < 0.70) {
         if (isLeft) {
           zone = 'card_cash';
           feedback = isMr
@@ -183,18 +200,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         }
       } else {
         if (isLeft) {
-          zone = 'card_settings';
+          zone = 'card_traffic';
           feedback = isMr
-              ? 'सेटिंग्ज कार्ड: भाषा आणि आवाज गती बदलण्यासाठी टॅप करा.'
+              ? 'अडथळा आणि ट्रॅफिक स्कॅनर: वाहने, सिग्नल, पायऱ्या आणि अडथळे तपासण्यासाठी टॅप करा.'
               : (isHi
-                  ? 'सेटिंग्स कार्ड: आवाज और सुगमता सेटिंग्स के लिए टैप करें।'
-                  : 'Settings card: Voice language and accessibility settings.');
+                  ? 'बाधा और ट्रैफिक स्कैनर: गाड़ियां, सिग्नल, सीढ़ियां और बाधा जांचने के लिए टैप करें।'
+                  : 'Obstacle and Traffic Scanner card: Scan vehicles, pedestrian signals, stairs, and road hazards.');
         } else {
           zone = 'card_more';
           feedback = isMr
-              ? 'अधिक पर्याय कार्ड: मजकूर वाचन आणि प्रश्नोत्तरांसाठी टॅप करा.'
+              ? 'अधिक पर्याय कार्ड: मजकूर वाचन, प्रश्नोत्तरे आणि सेटिंग्जसाठी टॅप करा.'
               : (isHi
-                  ? 'अन्य सुविधाएं कार्ड: टेक्स्ट पढ़ने और प्रश्नोत्तर के लिए टैप करें।'
+                  ? 'अन्य सुविधाएं कार्ड: टेक्स्ट पढ़ने, प्रश्नोत्तर और सेटिंग्स के लिए टैप करें।'
                   : 'More features card: OCR reader, image Q&A, and saved places.');
         }
       }
@@ -208,7 +225,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
 
     final now = DateTime.now();
-    if (zone != _lastDashboardTouchZone || now.difference(_lastDashboardTouchTime).inMilliseconds > 2200) {
+    if (zone != _lastDashboardTouchZone || now.difference(_lastDashboardTouchTime).inMilliseconds > 750) {
       _lastDashboardTouchZone = zone;
       _lastDashboardTouchTime = now;
       ref.read(hapticServiceProvider).trigger(HapticPattern.lightTap);
@@ -438,74 +455,74 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     mainAxisSpacing: 14,
                     childAspectRatio: 1.12,
                     children: [
-                  // 1. Navigation (Red Location Pin)
-                  AccessibleFeatureCard(
-                    title: strings.navigation,
-                    subtitle: strings.navigationSubtitle,
-                    icon: Icons.navigation_rounded,
-                    iconBackgroundColor: const Color(0xFFEF4444),
-                    semanticHint: 'Double tap to open navigation and walking guidance.',
-                    hapticService: hapticService,
-                    onTap: () => context.push('/navigation'),
-                  ),
+                      // 1. Navigation (Red Location Pin)
+                      AccessibleFeatureCard(
+                        title: strings.navigation,
+                        subtitle: strings.navigationSubtitle,
+                        icon: Icons.navigation_rounded,
+                        iconBackgroundColor: const Color(0xFFEF4444),
+                        semanticHint: 'Double tap to open navigation and walking guidance.',
+                        hapticService: hapticService,
+                        onTap: () => context.push('/navigation'),
+                      ),
 
-                  // 2. AI Vision (Cyan Camera Lens)
-                  AccessibleFeatureCard(
-                    title: strings.aiVision,
-                    subtitle: strings.aiVisionSubtitle,
-                    icon: Icons.camera_alt_rounded,
-                    iconBackgroundColor: AppColors.primaryCyan,
-                    semanticHint: 'Double tap to open real-time scene and obstacle analysis.',
-                    hapticService: hapticService,
-                    onTap: () => context.push('/scene'),
-                  ),
+                      // 2. AI Vision (Cyan Camera Lens)
+                      AccessibleFeatureCard(
+                        title: strings.aiVision,
+                        subtitle: strings.aiVisionSubtitle,
+                        icon: Icons.camera_alt_rounded,
+                        iconBackgroundColor: AppColors.primaryCyan,
+                        semanticHint: 'Double tap to open real-time scene and obstacle analysis.',
+                        hapticService: hapticService,
+                        onTap: () => context.push('/scene'),
+                      ),
 
-                  // 3. Cash Detector (Emerald Green Note)
-                  AccessibleFeatureCard(
-                    title: strings.cashDetector,
-                    subtitle: strings.cashSubtitle,
-                    icon: Icons.currency_rupee_rounded,
-                    iconBackgroundColor: const Color(0xFF10B981),
-                    semanticHint: 'Double tap to identify Indian rupee banknote denomination.',
-                    hapticService: hapticService,
-                    onTap: () => context.push('/currency'),
-                  ),
+                      // 3. Cash Detector (Emerald Green Note)
+                      AccessibleFeatureCard(
+                        title: strings.cashDetector,
+                        subtitle: strings.cashSubtitle,
+                        icon: Icons.currency_rupee_rounded,
+                        iconBackgroundColor: const Color(0xFF10B981),
+                        semanticHint: 'Double tap to identify Indian rupee banknote denomination.',
+                        hapticService: hapticService,
+                        onTap: () => context.push('/currency'),
+                      ),
 
-                  // 4. Object Recognition (Purple 3D Cube)
-                  AccessibleFeatureCard(
-                    title: strings.objectRecognition,
-                    subtitle: strings.objectSubtitle,
-                    icon: Icons.view_in_ar_rounded,
-                    iconBackgroundColor: const Color(0xFF8B5CF6),
-                    semanticHint: 'Double tap to identify obstacles, people, and objects.',
-                    hapticService: hapticService,
-                    onTap: () => context.push('/object'),
-                  ),
+                      // 4. Object Recognition (Purple 3D Cube)
+                      AccessibleFeatureCard(
+                        title: strings.objectRecognition,
+                        subtitle: strings.objectSubtitle,
+                        icon: Icons.view_in_ar_rounded,
+                        iconBackgroundColor: const Color(0xFF8B5CF6),
+                        semanticHint: 'Double tap to identify obstacles, people, and objects.',
+                        hapticService: hapticService,
+                        onTap: () => context.push('/object'),
+                      ),
 
-                  // 5. Settings (Blue Gear)
-                  AccessibleFeatureCard(
-                    title: strings.settings,
-                    subtitle: strings.settingsSubtitle,
-                    icon: Icons.settings_rounded,
-                    iconBackgroundColor: const Color(0xFF3B82F6),
-                    semanticHint: 'Double tap to adjust language, voice rate, and accessibility.',
-                    hapticService: hapticService,
-                    onTap: () => context.push('/settings'),
-                  ),
+                      // 5. Obstacle & Traffic Scanner (Vibrant Amber / Orange Alert)
+                      AccessibleFeatureCard(
+                        title: strings.obstacleTrafficScanner,
+                        subtitle: strings.obstacleTrafficSubtitle,
+                        icon: Icons.traffic_rounded,
+                        iconBackgroundColor: const Color(0xFFF59E0B),
+                        semanticHint: 'Double tap to scan vehicles, pedestrian traffic signals, stairs, and road obstacles.',
+                        hapticService: hapticService,
+                        onTap: () => context.push('/obstacle-traffic'),
+                      ),
 
-                  // 6. More (Vibrant Indigo Grid)
-                  AccessibleFeatureCard(
-                    title: strings.moreFeatures,
-                    subtitle: strings.moreSubtitle,
-                    icon: Icons.grid_view_rounded,
-                    iconBackgroundColor: const Color(0xFF6366F1),
-                    semanticHint: 'Double tap to open OCR, image Q&A, and saved places.',
-                    hapticService: hapticService,
-                    onTap: () => _showMoreMenu(context, strings),
+                      // 6. More (Vibrant Indigo Grid)
+                      AccessibleFeatureCard(
+                        title: strings.moreFeatures,
+                        subtitle: strings.moreSubtitle,
+                        icon: Icons.grid_view_rounded,
+                        iconBackgroundColor: const Color(0xFF6366F1),
+                        semanticHint: 'Double tap to open OCR, image Q&A, and saved places.',
+                        hapticService: hapticService,
+                        onTap: () => _showMoreMenu(context, strings),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
           ],
         ),
       ),

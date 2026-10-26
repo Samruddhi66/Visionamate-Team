@@ -63,7 +63,13 @@ class PreferencesService {
   double get voicePitch => _prefs.getDouble(_keyVoicePitch) ?? 1.04;
   Future<void> setVoicePitch(double pitch) => _prefs.setDouble(_keyVoicePitch, pitch);
 
-  String get aiVoiceProvider => _prefs.getString(_keyAiVoiceProvider) ?? 'gemini';
+  String get aiVoiceProvider {
+    final saved = _prefs.getString(_keyAiVoiceProvider);
+    if (saved != null && saved.isNotEmpty) return saved;
+    // Auto-enable Gemini voice if API key is configured
+    if (hasGeminiApiKey) return 'gemini';
+    return 'device';
+  }
   Future<void> setAiVoiceProvider(String provider) => _prefs.setString(_keyAiVoiceProvider, provider);
 
   String get elevenLabsApiKey => _prefs.getString(_keyElevenLabsApiKey) ?? '';

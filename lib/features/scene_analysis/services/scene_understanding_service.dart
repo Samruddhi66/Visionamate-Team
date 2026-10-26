@@ -2,6 +2,28 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../../../core/network/gemini_service.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../core/audio/tts_service.dart';
+import 'dart:typed_data';
+import 'package:image/image.dart' as img;
+import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/storage/preferences_service.dart';
+
+/// Helper to compress image before sending to API
+class ImageCompressor {
+  static Uint8List compress(Uint8List bytes, {int maxDimension = 1024, int quality = 85}) {
+    final image = img.decodeImage(bytes);
+    if (image == null) return bytes;
+    if (image.width > maxDimension || image.height > maxDimension) {
+      final resized = img.copyResize(image, width: maxDimension, height: maxDimension);
+      return Uint8List.fromList(img.encodeJpg(resized, quality: quality));
+    }
+    return Uint8List.fromList(img.encodeJpg(image, quality: quality));
+  }
+}
 
 enum DescriptionVerbosity {
   concise,
@@ -78,6 +100,11 @@ class DefaultSceneUnderstandingService implements SceneUnderstandingService {
         );
       }
 
+      // Compress image to reduce payload size and improve API response time
+      final compressedBytes = ImageCompressor.compress(Uint8List.fromList(bytes), maxDimension: 1024, quality: 85);
+      debugPrint('[SceneUnderstandingService] Image compressed: ${bytes.length} -> ${compressedBytes.length} bytes');
+      debugPrint('[SceneUnderstandingService] Image compressed: ${bytes.length} -> ${compressedBytes.length} bytes');
+
       if (geminiService != null && geminiService!.preferencesService.hasGeminiApiKey) {
         String langInstruction = 'Describe in clear, natural spoken English.';
         if (languageCode == 'mr') {
@@ -86,21 +113,29 @@ class DefaultSceneUnderstandingService implements SceneUnderstandingService {
           langInstruction = 'Describe in clear, natural spoken Hindi (हिन्दी) for text-to-speech for a blind user in India. Focus on walking path and obstacle locations.';
         }
 
-        final prompt = 'You are an assistive spatial awareness guide for a blind person. '
-            'Look at this camera image and describe the physical scene in 2 direct, actionable sentences. '
+        final prompt = 'You are a warm, empathetic spatial awareness companion for a visually impaired person. '
+            'Look at this camera image and describe the physical scene as if you are speaking to a trusted friend who cannot see. '
             '$langInstruction '
-            'Highlight: 1) the walking path directly ahead, 2) any obstacles, doors, steps, people, or furniture and their positions (left, ahead, right). '
+            'Speak naturally and conversationally like a helpful guide beside them. '
+            'Describe: '
+            '1) Where they are (indoor room type, outdoor street, hallway, etc.), '
+            '2) Is the path ahead clear to walk, or is something blocking the way? '
+            '3) Any stairs (going up or down), doors, vehicles, traffic, obstacles, or people nearby and where they are relative to the user (left, right, ahead, how far), '
+            '4) Lighting — is it bright, dim, or dark? Any dark areas to be careful of? '
+            '5) Any signs, text, or important colored objects they should know about. '
+            '6) Any safety concerns — steps, drops, traffic, uneven ground, or hazards. '
+            'Keep it warm, natural, and easy to understand when spoken aloud. '
             'Then on a new line output:\n'
             'DETECTIONS:\n'
-            '- [Object Name] | [Distance e.g. 1.5m] | [Position: Left/Center/Right]\n'
-            '(List up to 3 most important real-world items)';
+            '- [Object Name] | [Distance e.g. 1.5m] | [Position: Left/Center/Right] | [Color if visible]\n'
+            '(List up to 6 most important real-world obstacles, vehicles, and items)';
 
         try {
           final response = await geminiService!.askGemini(
             prompt: prompt,
-            imageBytes: bytes,
+            imageBytes: compressedBytes,
             mimeType: 'image/jpeg',
-            maxTokens: 180,
+            maxTokens: 256,
           );
 
           final cleanedText = response.trim();
@@ -193,10 +228,10 @@ class DefaultSceneUnderstandingService implements SceneUnderstandingService {
           final isMr = languageCode.startsWith('mr');
           final isHi = languageCode.startsWith('hi');
           final msg = isMr
-              ? 'कॅमेरा फ्रेम कॅप्चर झाली, परंतु एआय विश्लेषण अयशस्वी झाले. कृपया इंटरनेट आणि जेमिनी की तपासा.'
+              ? 'कॅमेरा फ्रेम कॅप्चर झाला, परंतु एआय विश्लेषण अयशस्वी झाले. कृपया तुमची इंटरनेट कनेक्शन आणि जेमिनी एपीआय की तपासा.'
               : (isHi
-                  ? 'कैमरा फ्रेम कैप्चर हुआ, लेकिन एआई विश्लेषण विफल रहा। कृपया इंटरनेट और जेमिनी की जांचें।'
-                  : 'Live frame captured, but AI analysis failed. Please verify your Gemini API key in Settings.');
+                  ? 'कैमरा फ्रेम कैप्चर हो गया, लेकिन एआई विश्लेषण विफल रहा। कृपया अपना इंटरनेट कनेक्शन और जेमिनी एपीआई की जांचें।'
+                  : 'I captured the camera frame, but AI analysis failed. Please check your internet connection and verify your Gemini API key in Settings.');
           return SceneDescriptionResult(
             descriptionText: msg,
             confidence: 0.0,
@@ -211,10 +246,10 @@ class DefaultSceneUnderstandingService implements SceneUnderstandingService {
       final isMr = languageCode.startsWith('mr');
       final isHi = languageCode.startsWith('hi');
       final unconfigMsg = isMr
-          ? 'थेट कॅमेरा फ्रेम सक्रिय आहे. रिअल-टाइम एआय विश्लेषणासाठी कृपया तुमची जेमिनी एपीआय की प्रविष्ट करा.'
+          ? 'लाइव कॅमेरा फ्रेम सक्रिय आहे. रिअल-टाइम एआय विश्लेषणासाठी कृपया तुमची जेमिनी एपीआय की सेटिंग्जमध्ये प्रविष्ट करा.'
           : (isHi
-              ? 'लाइव कैमरा फ्रेम सक्रिय है। रीयल-टाइम एआई विश्लेषण के लिए कृपया अपनी जेमिनी एपीआई की दर्ज करें।'
-              : 'Live camera frame captured. To analyze what is in front of the camera in real time, please add your Gemini API Key.');
+              ? 'लाइव कैमरा फ्रेम सक्रिय है। रीयल-टाइम एआई विश्लेषण के लिए कृपया अपनी जेमिनी एपीआई की सेटिंग्ज में दर्ज करें।'
+              : 'Live camera frame captured. To analyze what is in front of the camera in real time, please add your Gemini API Key in Settings.');
       return SceneDescriptionResult(
         descriptionText: unconfigMsg,
         confidence: 0.0,
@@ -226,7 +261,7 @@ class DefaultSceneUnderstandingService implements SceneUnderstandingService {
     } catch (e) {
       debugPrint('[SceneUnderstandingService] Real-time scene analysis error: $e');
       return const SceneDescriptionResult(
-        descriptionText: 'Unable to capture camera frame. Please ensure camera permissions are granted.',
+        descriptionText: 'Unable to capture camera frame. Please ensure camera permissions are granted and try again.',
         confidence: 0.0,
         isLocalInference: false,
         detectedElements: [],

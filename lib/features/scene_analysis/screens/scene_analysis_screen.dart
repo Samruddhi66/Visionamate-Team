@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../app/localization/app_localizations.dart';
 import '../../../app/providers.dart';
 import '../../../app/theme/accessibility_tokens.dart';
@@ -519,6 +520,17 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Obstacle & Traffic Scanner',
+            icon: const Icon(
+              Icons.warning_amber_rounded,
+              color: Color(0xFFEF4444),
+            ),
+            onPressed: () {
+              haptics.trigger(HapticPattern.lightTap);
+              context.push('/obstacle-traffic');
+            },
+          ),
           IconButton(
             tooltip: _isContinuousScan ? 'Pause Auto-Scan' : 'Enable Fast Continuous Scan',
             icon: Icon(

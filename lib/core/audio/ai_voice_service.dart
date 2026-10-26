@@ -85,14 +85,12 @@ class AiVoiceService {
       return true;
     }
 
-    // Try Gemini Live / TTS endpoint (v1alpha - native TTS model)
-    // gemini-2.5-flash-preview-tts is the real TTS model
-    // Falls back gracefully if unavailable
+    // Try Gemini Live / Native Audio generation endpoint
     final ttsModels = [
-      'gemini-3.8-flash-lite-tts',
-      'gemini-3.8-flash-tts',
-      'gemini-3.1-flash-tts-preview',
-      'gemini-2.5-flash-preview-tts',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-exp',
+      'gemini-2.5-flash',
+      'gemini-flash-latest',
     ];
 
     for (final model in ttsModels) {

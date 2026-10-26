@@ -71,6 +71,11 @@ class _VoiceAssistantModalState extends ConsumerState<VoiceAssistantModal> {
         Navigator.of(context).pop();
         context.push('/image-qa');
         break;
+      case VoiceActionType.scanObstaclesAndTraffic:
+        haptics.trigger(HapticPattern.actionSuccess);
+        Navigator.of(context).pop();
+        context.push('/obstacle-traffic');
+        break;
       case VoiceActionType.navigateToPlace:
         haptics.trigger(HapticPattern.actionSuccess);
         Navigator.of(context).pop();

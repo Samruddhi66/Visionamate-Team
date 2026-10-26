@@ -103,10 +103,14 @@ class AppStrings {
   final String audioCues;
   final String speechRate;
   final String testVoice;
+  final String obstacleTrafficScanner;
+  final String obstacleTrafficSubtitle;
   final Locale locale;
 
   const AppStrings({
     this.locale = const Locale('en'),
+    this.obstacleTrafficScanner = 'Obstacle & Traffic Scanner',
+    this.obstacleTrafficSubtitle = 'Stairs, obstacles, vehicles & signals',
     required this.appTitle,
     required this.appTagline,
     required this.greetingPrefix,
@@ -354,6 +358,8 @@ class AppStrings {
     audioCues: 'ऑडियो संकेत',
     speechRate: 'बोलने की गति',
     testVoice: 'आवाज का परीक्षण करें',
+    obstacleTrafficScanner: 'बाधा और ट्रैफिक स्कैनर',
+    obstacleTrafficSubtitle: 'सीढ़ियां, गड्ढे, गाड़ियां और सिग्नल',
   );
 
   // Marathi (मराठी) Strings
@@ -438,6 +444,8 @@ class AppStrings {
     audioCues: 'ऑडिओ संकेत',
     speechRate: 'बोलण्याचा वेग',
     testVoice: 'आवाजाची चाचणी घ्या',
+    obstacleTrafficScanner: 'अडथळा आणि ट्रॅफिक स्कॅनर',
+    obstacleTrafficSubtitle: 'पायऱ्या, खड्डे, वाहने आणि सिग्नल',
   );
 
   static AppStrings of(BuildContext context) {

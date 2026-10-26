@@ -12,6 +12,7 @@ import '../features/emergency/screens/emergency_screen.dart';
 import '../features/history/screens/history_screen.dart';
 import '../features/saved_places/screens/saved_places_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
+import '../features/safety_alerts/screens/obstacle_traffic_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
@@ -70,6 +71,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/obstacle-traffic',
+      builder: (context, state) => const ObstacleTrafficScreen(),
     ),
   ],
 );
