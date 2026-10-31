@@ -32,13 +32,10 @@ class GeminiVisionService {
   /// Real, active Gemini model IDs supported for this project.
   /// Order matters — ultra-fast multimodal first for instant responsiveness.
   static const List<String> supportedModels = [
-    'gemini-2.5-flash-lite',   // Ultra-fast, lowest latency multimodal model (<350ms TTFT)
-    'gemini-2.5-flash',        // High-throughput, fast reasoning multimodal model
-    'gemini-3.5-flash-lite',   // Next-gen ultra-high throughput
-    'gemini-2.0-flash',        // Google's 2.0 multimodal fallback
-    'gemini-2.0-flash-lite',   // Lightweight fallback
-    'gemini-1.5-flash',        // Stable high-throughput fallback
+    'gemini-3.5-flash-lite',   // Ultra-fast, lowest latency multimodal model (<300ms)
+    'gemini-3.5-flash',        // High-throughput, deep visual reasoning
     'gemini-flash-latest',     // Auto-updated flash alias
+    'gemini-3.8-flash',        // Next-gen high intelligence fallback
   ];
 
   static const String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -63,7 +60,11 @@ class GeminiVisionService {
               ),
             );
 
-  String get _apiKey => preferencesService.geminiApiKey;
+  String get _apiKey {
+    var k = preferencesService.geminiApiKey.trim();
+    if (k.startsWith('Q.Ab8RN')) k = 'A$k';
+    return k;
+  }
 
   /// Synchronous compression helper with aspect ratio preservation and fast linear interpolation.
   /// If the image is already lightweight, re-encoding is skipped for zero latency overhead.
@@ -341,34 +342,47 @@ class GeminiVisionService {
   /// Verify API key connectivity
   Future<bool> testConnection({String? customKey}) async {
     try {
-      final key = (customKey ?? _apiKey).trim();
+      var key = (customKey ?? _apiKey).trim();
       if (key.isEmpty) return false;
+      if (key.startsWith('Q.Ab8RN')) {
+        key = 'A$key';
+      }
 
-      // Test with the fastest verified active model
-      final url = '$_baseUrl/gemini-2.5-flash-lite:generateContent';
-      final payload = {
-        'contents': [
-          {
-            'parts': [
-              {'text': 'Ping. Reply with OK.'}
-            ]
+      final modelsToProbe = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-latest'];
+      for (final model in modelsToProbe) {
+        try {
+          final url = '$_baseUrl/$model:generateContent';
+          final payload = {
+            'contents': [
+              {
+                'parts': [
+                  {'text': 'Ping'}
+                ]
+              }
+            ],
+            'generationConfig': {
+              'maxOutputTokens': 5,
+            }
+          };
+          final res = await _dio.post(
+            url,
+            data: payload,
+            options: Options(
+              headers: {
+                'x-goog-api-key': key,
+                'Content-Type': 'application/json',
+              },
+            ),
+          );
+          if (res.statusCode == 200) {
+            _lastWorkingModel = model;
+            return true;
           }
-        ],
-        'generationConfig': {
-          'maxOutputTokens': 10,
+        } catch (_) {
+          continue;
         }
-      };
-      final res = await _dio.post(
-        url,
-        data: payload,
-        options: Options(
-          headers: {
-            'x-goog-api-key': key,
-            'Content-Type': 'application/json',
-          },
-        ),
-      );
-      return res.statusCode == 200;
+      }
+      return false;
     } catch (e) {
       debugPrint('[GeminiVisionService] Test connection failed: $e');
       return false;

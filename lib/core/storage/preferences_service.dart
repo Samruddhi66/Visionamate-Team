@@ -44,7 +44,7 @@ class PreferencesService {
   static const String _keyElevenLabsVoiceId = 'vm_elevenlabs_voice_id';
   static const String _keyOpenAiApiKey = 'vm_openai_api_key';
   static const String _keyOpenAiVoice = 'vm_openai_voice';
-  static const String defaultGeminiApiKey = ''; // TODO: set securely
+  static const String defaultGeminiApiKey = '';
 
   final SharedPreferences _prefs;
 
@@ -58,13 +58,22 @@ class PreferencesService {
   String get geminiApiKey {
     final raw = _prefs.getString(_keyGeminiApiKey);
     final decrypted = _secureDecrypt(raw);
-    if (decrypted.isNotEmpty) return decrypted;
+    if (decrypted.isNotEmpty) {
+      if (decrypted.startsWith('Q.Ab8RN')) return 'A$decrypted';
+      return decrypted;
+    }
     if (defaultGeminiApiKey.trim().isNotEmpty) return defaultGeminiApiKey;
     return '';
   }
 
   bool get hasGeminiApiKey => geminiApiKey.trim().isNotEmpty;
-  Future<void> setGeminiApiKey(String key) => _prefs.setString(_keyGeminiApiKey, _secureEncrypt(key.trim()));
+  Future<void> setGeminiApiKey(String key) {
+    var clean = key.trim();
+    if (clean.startsWith('Q.Ab8RN')) {
+      clean = 'A$clean';
+    }
+    return _prefs.setString(_keyGeminiApiKey, _secureEncrypt(clean));
+  }
 
   String get themeMode => _prefs.getString(_keyThemeMode) ?? 'dark';
   Future<void> setThemeMode(String mode) => _prefs.setString(_keyThemeMode, mode);

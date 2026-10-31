@@ -394,7 +394,11 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
                             onPressed: isTesting
                                 ? null
                                 : () async {
-                                    final candidate = keyController.text.trim();
+                                    var candidate = keyController.text.trim();
+                                    if (candidate.startsWith('Q.Ab8RN')) {
+                                      candidate = 'A$candidate';
+                                      keyController.text = candidate;
+                                    }
                                     if (candidate.isEmpty) {
                                       setModalState(() {
                                         testSuccess = false;
@@ -435,7 +439,10 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             onPressed: () async {
-                              final savedKey = keyController.text.trim();
+                              var savedKey = keyController.text.trim();
+                              if (savedKey.startsWith('Q.Ab8RN')) {
+                                savedKey = 'A$savedKey';
+                              }
                               await prefs.setGeminiApiKey(savedKey);
                               haptics.trigger(HapticPattern.actionSuccess);
                               if (ctx.mounted) Navigator.pop(ctx);

@@ -906,13 +906,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       testStatus = 'Testing key with Google Gemini...';
                                       testSuccess = null;
                                     });
-                                    final candidateKey = keyController.text.trim();
+                                    var candidateKey = keyController.text.trim();
+                                    if (candidateKey.startsWith('Q.Ab8RN')) {
+                                      candidateKey = 'A$candidateKey';
+                                      keyController.text = candidateKey;
+                                    }
                                     final ok = await gemini.testConnection(customKey: candidateKey);
                                     setSheetState(() {
                                       isTesting = false;
                                       testSuccess = ok;
                                       testStatus = ok
-                                          ? 'Key verified! Connected to Gemini 2.0 Flash.'
+                                          ? 'Key verified! Connected to \${gemini.activeModel}.'
                                           : 'Test failed. Please check key format or internet.';
                                     });
                                     if (ok) {
@@ -938,7 +942,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             onPressed: () async {
-                              final savedKey = keyController.text.trim();
+                              var savedKey = keyController.text.trim();
+                              if (savedKey.startsWith('Q.Ab8RN')) {
+                                savedKey = 'A$savedKey';
+                              }
                               await prefs.setGeminiApiKey(savedKey);
                               haptics.trigger(HapticPattern.actionSuccess);
                               if (ctx.mounted) Navigator.pop(ctx);
