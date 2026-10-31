@@ -13,6 +13,9 @@ import '../features/history/screens/history_screen.dart';
 import '../features/saved_places/screens/saved_places_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/safety_alerts/screens/obstacle_traffic_screen.dart';
+import '../features/medicine_scanner/screens/medicine_scanner_screen.dart';
+import '../features/color_matcher/screens/color_matcher_screen.dart';
+import '../features/barcode_scanner/screens/barcode_scanner_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
@@ -75,6 +78,18 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/obstacle-traffic',
       builder: (context, state) => const ObstacleTrafficScreen(),
+    ),
+    GoRoute(
+      path: '/medicine-scanner',
+      builder: (context, state) => const MedicineScannerScreen(),
+    ),
+    GoRoute(
+      path: '/color-matcher',
+      builder: (context, state) => const ColorMatcherScreen(),
+    ),
+    GoRoute(
+      path: '/barcode-scanner',
+      builder: (context, state) => const BarcodeScannerScreen(),
     ),
   ],
 );

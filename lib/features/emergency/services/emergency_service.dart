@@ -160,12 +160,29 @@ class EmergencyService {
 
   /// Full emergency dispatch: call + SMS + share location
   Future<void> dispatchFullEmergency() async {
+    final lang = prefs.language;
+    final isMr = lang.startsWith('mr');
+    final isHi = lang.startsWith('hi');
+
     await haptics.trigger(HapticPattern.emergencyStatus);
-    await tts.speak('Emergency activated! Dispatching live coordinates and calling emergency contact.');
+    await tts.speak(
+      isMr
+          ? 'इमर्जन्सी सक्रिय झाली आहे! आपत्कालीन कॉल आणि थेट लोकेशन संदेश पाठवला जात आहे.'
+          : (isHi
+              ? 'इमरजेंसी सक्रिय हो गई है! आपातकालीन कॉल और लाइव लोकेशन संदेश भेजा जा रहा है।'
+              : 'Emergency activated! Dispatching live coordinates and calling emergency contact.'),
+      interrupt: true,
+    );
 
     final position = await getCurrentLocation();
     if (position == null) {
-      await tts.speak('Unable to get location. Calling emergency contact without location.');
+      await tts.speak(
+        isMr
+            ? 'जीपीएस स्थान मिळाले नाही. थेट आपत्कालीन कॉल लावला जात आहे.'
+            : (isHi
+                ? 'जीपीएस स्थान नहीं मिला। सीधा आपातकालीन कॉल किया जा रहा है।'
+                : 'Unable to get location. Calling emergency contact directly.'),
+      );
       await callEmergencyContact();
       return;
     }

@@ -29,6 +29,9 @@ class PreferencesService {
   static const String _keyLanguage = 'vm_language';
   static const String _keyHapticsEnabled = 'vm_haptics_enabled';
   static const String _keySpeechRate = 'vm_speech_rate';
+  static const String _keyAutoTorch = 'vm_auto_torch';
+  static const String _keyShakeSos = 'vm_shake_sos';
+  static const String _keySmartMotion = 'vm_smart_motion';
   static const String _keyVerbosity = 'vm_verbosity';
   static const String _keyEmergencyContactName = 'vm_emergency_name';
   static const String _keyEmergencyContactPhone = 'vm_emergency_phone';
@@ -72,8 +75,17 @@ class PreferencesService {
   bool get hapticsEnabled => _prefs.getBool(_keyHapticsEnabled) ?? true;
   Future<void> setHapticsEnabled(bool enabled) => _prefs.setBool(_keyHapticsEnabled, enabled);
 
-  double get speechRate => _prefs.getDouble(_keySpeechRate) ?? 0.5;
+  double get speechRate => _prefs.getDouble(_keySpeechRate) ?? 0.55;
   Future<void> setSpeechRate(double rate) => _prefs.setDouble(_keySpeechRate, rate);
+
+  bool get autoTorchEnabled => _prefs.getBool(_keyAutoTorch) ?? true;
+  Future<void> setAutoTorchEnabled(bool enabled) => _prefs.setBool(_keyAutoTorch, enabled);
+
+  bool get shakeSosEnabled => _prefs.getBool(_keyShakeSos) ?? true;
+  Future<void> setShakeSosEnabled(bool enabled) => _prefs.setBool(_keyShakeSos, enabled);
+
+  bool get smartMotionEnabled => _prefs.getBool(_keySmartMotion) ?? true;
+  Future<void> setSmartMotionEnabled(bool enabled) => _prefs.setBool(_keySmartMotion, enabled);
 
   String get verbosity => _prefs.getString(_keyVerbosity) ?? 'concise';
   Future<void> setVerbosity(String verbosity) => _prefs.setString(_keyVerbosity, verbosity);

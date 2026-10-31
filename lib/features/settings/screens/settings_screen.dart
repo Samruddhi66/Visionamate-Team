@@ -1331,6 +1331,56 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
             const SizedBox(height: 20),
 
+            // Section: Smart Sensors & Hardware Automation
+            _buildSectionHeader('Smart Sensors & Automation'),
+
+            // Auto Flashlight toggle
+            _buildSettingsToggleRow(
+              icon: Icons.flash_auto_rounded,
+              title: 'Auto Flashlight (Low-Light Torch)',
+              value: prefs.autoTorchEnabled,
+              onChanged: (val) {
+                haptics.trigger(HapticPattern.buttonTap);
+                prefs.setAutoTorchEnabled(val);
+                setState(() {});
+                voice.speak(
+                  val ? 'Auto flashlight enabled in dark environments.' : 'Auto flashlight turned off.',
+                );
+              },
+            ),
+
+            // Shake to SOS toggle
+            _buildSettingsToggleRow(
+              icon: Icons.vibration_rounded,
+              title: 'Shake to SOS (3x Shake Call)',
+              value: prefs.shakeSosEnabled,
+              onChanged: (val) {
+                haptics.trigger(HapticPattern.buttonTap);
+                prefs.setShakeSosEnabled(val);
+                setState(() {});
+                voice.speak(
+                  val ? 'Shake to SOS activated.' : 'Shake to SOS turned off.',
+                );
+              },
+            ),
+
+            // Smart Motion Battery Saver toggle
+            _buildSettingsToggleRow(
+              icon: Icons.battery_charging_full_rounded,
+              title: 'Smart Motion Battery Saver',
+              value: prefs.smartMotionEnabled,
+              onChanged: (val) {
+                haptics.trigger(HapticPattern.buttonTap);
+                prefs.setSmartMotionEnabled(val);
+                setState(() {});
+                voice.speak(
+                  val ? 'Smart motion battery saving enabled.' : 'Smart motion turned off.',
+                );
+              },
+            ),
+
+            const SizedBox(height: 20),
+
             // Section 3: Gemini Vision Intelligence
             _buildSectionHeader('AI Vision Intelligence (Google Gemini)'),
             Container(

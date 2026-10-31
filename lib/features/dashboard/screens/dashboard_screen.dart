@@ -10,6 +10,8 @@ import '../../../core/haptics/haptic_patterns.dart';
 import '../../../core/widgets/accessible_feature_card.dart';
 import '../../../core/widgets/voice_command_button.dart';
 import '../../voice_assistant/widgets/voice_assistant_modal.dart';
+import '../../../core/sensors/shake_detector_service.dart';
+import '../../../core/widgets/accessible_gesture_detector.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -20,6 +22,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _currentNavIndex = 0;
+  ShakeDetectorService? _shakeDetector;
 
   @override
   void initState() {
@@ -31,7 +34,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         '${strings.appTitle}. ${strings.helpPrompt}',
         interrupt: false,
       );
+
+      final prefs = ref.read(preferencesServiceProvider);
+      if (prefs.shakeSosEnabled) {
+        _shakeDetector = ShakeDetectorService(
+          onShakeDetected: () {
+            if (mounted) {
+              ref.read(emergencyServiceProvider).dispatchFullEmergency();
+              context.push('/emergency');
+            }
+          },
+        );
+        _shakeDetector?.start();
+      }
     });
+  }
+
+  @override
+  void dispose() {
+    _shakeDetector?.dispose();
+    super.dispose();
   }
 
   void _showMoreMenu(BuildContext context, AppStrings strings) {
@@ -46,8 +68,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       ),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
@@ -80,6 +103,33 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               onTap: () {
                 Navigator.pop(ctx);
                 context.push('/ocr');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.medical_services_rounded, color: Color(0xFF10B981)),
+              title: const Text('औषध व एक्सपायरी स्कॅनर', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: const Text('औषध नाव, डोस आणि एक्सपायरी तारीख तपासा', style: TextStyle(color: AppColors.textSecondaryDark)),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/medicine-scanner');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.palette_rounded, color: Color(0xFFEC4899)),
+              title: const Text('कलर आणि कपडे मॅचिंग', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: const Text('कपड्यांचे रंग, पॅटर्न आणि स्टाइल सल्ला', style: TextStyle(color: AppColors.textSecondaryDark)),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/color-matcher');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFFF59E0B)),
+              title: const Text('बारकोड व वस्तू ओळख', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: const Text('किराणा व पॅकबंद वस्तू त्वरित ओळखा', style: TextStyle(color: AppColors.textSecondaryDark)),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/barcode-scanner');
               },
             ),
             ListTile(
@@ -119,6 +169,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               },
             ),
           ],
+        ),
         ),
       ),
     );
@@ -210,7 +261,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
-      body: SafeArea(
+      body: AccessibleGestureDetector(
+        ttsService: ref.read(ttsServiceProvider),
+        hapticService: hapticService,
+        languageCode: strings.locale.languageCode,
+        child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             final screenSize = Size(constraints.maxWidth, constraints.maxHeight);
@@ -512,6 +567,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 },
 ),
 ),
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentNavIndex,
         selectedItemColor: AppColors.primaryCyan,

@@ -5,6 +5,7 @@ import '../../../app/providers.dart';
 import '../../../app/theme/accessibility_tokens.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/haptics/haptic_patterns.dart';
+import '../../../core/audio/binaural_audio_service.dart';
 import '../../../core/widgets/live_camera_viewport.dart';
 import '../services/obstacle_traffic_service.dart';
 
@@ -29,6 +30,7 @@ class _ObstacleTrafficScreenState extends ConsumerState<ObstacleTrafficScreen> {
   String? _currentTouchAnnouncement;
   String? _lastSpokenZone;
   DateTime _lastSpokenTime = DateTime.now();
+  final BinauralAudioService _binauralAudio = BinauralAudioService();
 
   @override
   void initState() {
@@ -83,6 +85,12 @@ class _ObstacleTrafficScreenState extends ConsumerState<ObstacleTrafficScreen> {
       _lastScanResult = result;
     });
 
+    if (result.items.isNotEmpty) {
+      final keyItem = result.items.firstWhere((i) => i.isCritical, orElse: () => result.items.first);
+      final balance = BinauralAudioService.horizontalPositionToBalance(keyItem.x);
+      _binauralAudio.playSpatialCue(balance: balance, isCritical: keyItem.isCritical);
+    }
+
     if (result.criticalWarning != null) {
       await haptics.trigger(HapticPattern.hazardDetected);
       await voice.speak('सावधान! ${result.criticalWarning}', interrupt: true);
@@ -123,6 +131,8 @@ class _ObstacleTrafficScreenState extends ConsumerState<ObstacleTrafficScreen> {
       zone = 'item_${hitItem.label}';
       feedback = hitItem.spokenAlert;
       haptic = hitItem.isCritical ? HapticPattern.hazardDetected : HapticPattern.selectionClick;
+      final balance = BinauralAudioService.horizontalPositionToBalance(hitItem.x);
+      _binauralAudio.playSpatialCue(balance: balance, isCritical: hitItem.isCritical);
     } else {
       // 2. Spatial Directional Sector Feedback
       if (normY < 0.35) {
@@ -272,12 +282,12 @@ class _ObstacleTrafficScreenState extends ConsumerState<ObstacleTrafficScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: item.highlightColor.withOpacity(0.85),
+                                    color: item.highlightColor.withValues(alpha: 0.85),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(color: Colors.white, width: 1.5),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: item.highlightColor.withOpacity(0.5),
+                                        color: item.highlightColor.withValues(alpha: 0.5),
                                         blurRadius: 8,
                                         spreadRadius: 1,
                                       ),
@@ -321,7 +331,7 @@ class _ObstacleTrafficScreenState extends ConsumerState<ObstacleTrafficScreen> {
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border: Border.all(color: AppColors.primaryCyan, width: 2.5),
-                                  color: AppColors.primaryCyan.withOpacity(0.25),
+                                  color: AppColors.primaryCyan.withValues(alpha: 0.25),
                                 ),
                                 child: const Icon(
                                   Icons.touch_app_rounded,
@@ -378,7 +388,7 @@ class _ObstacleTrafficScreenState extends ConsumerState<ObstacleTrafficScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0F172A).withOpacity(0.92),
+                              color: const Color(0xFF0F172A).withValues(alpha: 0.92),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(color: AppColors.primaryCyan, width: 1.5),
                             ),
@@ -450,7 +460,7 @@ class _ObstacleTrafficScreenState extends ConsumerState<ObstacleTrafficScreen> {
                     child: Container(
                       height: 72,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B).withOpacity(0.96),
+                        color: const Color(0xFF1E293B).withValues(alpha: 0.96),
                         borderRadius: BorderRadius.circular(AccessibilityTokens.radiusL),
                         border: Border.all(color: AppColors.cardBorderDark, width: 1.5),
                         boxShadow: const [
@@ -540,7 +550,7 @@ class _ObstacleTrafficScreenState extends ConsumerState<ObstacleTrafficScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryCyan : const Color(0xFF0F172A).withOpacity(0.85),
+          color: isSelected ? AppColors.primaryCyan : const Color(0xFF0F172A).withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected ? Colors.white : AppColors.cardBorderDark,
