@@ -7,6 +7,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../../core/coordinator/unified_voice_controller.dart';
 import '../../../core/haptics/haptic_patterns.dart';
+import '../../../core/services/app_share_service.dart';
 import '../../../core/widgets/accessible_feature_card.dart';
 import '../../../core/widgets/voice_command_button.dart';
 import '../../voice_assistant/widgets/voice_assistant_modal.dart';
@@ -157,6 +158,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               onTap: () {
                 Navigator.pop(ctx);
                 context.push('/settings');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.share_rounded, color: AppColors.primaryCyan),
+              title: const Text('Share VisionMate APK', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: const Text('Share app with friends & family', style: TextStyle(color: AppColors.textSecondaryDark)),
+              onTap: () {
+                Navigator.pop(ctx);
+                ref.read(hapticServiceProvider).trigger(HapticPattern.buttonTap);
+                AppShareService.shareAppApk();
               },
             ),
             ListTile(

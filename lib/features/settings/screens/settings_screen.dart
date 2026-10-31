@@ -5,6 +5,7 @@ import '../../../app/providers.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../../core/haptics/haptic_patterns.dart';
+import '../../../core/services/app_share_service.dart';
 import '../../../core/widgets/accessible_action_button.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -1015,6 +1016,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ),
         actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.share_rounded, size: 18, color: AppColors.primaryCyan),
+            label: const Text('Share APK', style: TextStyle(color: AppColors.primaryCyan)),
+            onPressed: () {
+              Navigator.pop(ctx);
+              ref.read(unifiedVoiceControllerProvider).speak('Sharing VisionMate APK.');
+              AppShareService.shareAppApk();
+            },
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Close', style: TextStyle(color: AppColors.primaryCyan)),
@@ -1322,6 +1332,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ? 'High Contrast mode active.'
                       : 'Dark mode active.',
                 );
+              },
+            ),
+
+            // Share App row
+            _buildSettingsRow(
+              icon: Icons.share_rounded,
+              title: 'Share VisionMate App',
+              trailingWidget: const Icon(Icons.chevron_right_rounded, color: Colors.white54, size: 20),
+              onTap: () async {
+                haptics.trigger(HapticPattern.buttonTap);
+                voice.speak('Sharing VisionMate APK.');
+                await AppShareService.shareAppApk();
               },
             ),
 
