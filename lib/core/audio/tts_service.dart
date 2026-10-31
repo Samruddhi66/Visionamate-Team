@@ -141,7 +141,6 @@ class FlutterTtsService implements TtsService {
       await _flutterTts.setVolume(1.0);
       await _flutterTts.setPitch(_currentPitch);
       await _flutterTts.setLanguage(_currentLocale);
-      await _flutterTts.setEngine('google-tts');
 
       // On iOS, configure audio category to speak even when device is on silent
       if (!kIsWeb) {
@@ -160,6 +159,7 @@ class FlutterTtsService implements TtsService {
       await _applyBestNaturalVoice();
 
       _isInitialized = true;
+      _prewarmTts();
     } catch (e) {
       debugPrint('[TTS] Init error: $e');
     }

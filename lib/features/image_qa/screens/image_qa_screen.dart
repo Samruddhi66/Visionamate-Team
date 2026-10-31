@@ -47,8 +47,8 @@ class _ImageQaScreenState extends ConsumerState<ImageQaScreen> {
     final cameraService = ref.read(cameraServiceProvider);
     final historyRepo = ref.read(historyRepositoryProvider);
 
-    await haptics.trigger(HapticPattern.processingStarted);
-    await voice.speak('Analyzing scene for: $question...');
+    haptics.trigger(HapticPattern.processingStarted);
+    voice.speak('Analyzing scene for: $question...');
 
     final frame = await cameraService.takePicture();
     if (frame == null) {

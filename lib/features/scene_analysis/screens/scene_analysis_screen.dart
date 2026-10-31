@@ -1,3 +1,4 @@
+import "../../voice_assistant/widgets/voice_assistant_modal.dart";
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -192,6 +193,10 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
   }
 
   void _handlePointerEvent(PointerEvent event, Size screenSize) {
+    if (event.localPosition.dy > screenSize.height - 180) {
+      // Exclude bottom action buttons area from explore-by-touch speech interruptions
+      return;
+    }
     final info = _evaluateTouch(event.localPosition, screenSize);
     final now = DateTime.now();
     final isNewZone = info.zone != _lastSpokenZone;
@@ -919,7 +924,7 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
                           child: InkWell(
                             onTap: () {
                               haptics.trigger(HapticPattern.listeningStarted);
-                              _captureAndAnalyze();
+                              VoiceAssistantModal.show(context);
                             },
                             borderRadius: BorderRadius.circular(40),
                             child: Container(

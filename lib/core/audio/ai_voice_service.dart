@@ -17,9 +17,9 @@ class AiVoiceService {
   }) : _dio = dio ??
             Dio(
               BaseOptions(
-                connectTimeout: const Duration(seconds: 12),
-                receiveTimeout: const Duration(seconds: 20),
-                sendTimeout: const Duration(seconds: 12),
+                connectTimeout: const Duration(seconds: 8),
+                receiveTimeout: const Duration(seconds: 15),
+                sendTimeout: const Duration(seconds: 8),
               ),
             );
 
@@ -34,7 +34,8 @@ class AiVoiceService {
     } else if (provider == 'openai') {
       return preferencesService.openAiApiKey.trim().isNotEmpty;
     }
-    return preferencesService.hasGeminiApiKey;
+    // 'device' is local TTS, no cloud AI voice needed
+    return false;
   }
 
   /// Synthesizes and plays natural human voice via Gemini TTS, ElevenLabs, or OpenAI TTS.
@@ -51,19 +52,19 @@ class AiVoiceService {
 
     final provider = preferencesService.aiVoiceProvider;
 
+    // Fast path: if user selected device voice, skip cloud TTS calls completely for 0 latency
+    if (provider == 'device') {
+      return false;
+    }
+
     try {
-      if (provider == 'gemini' || (provider == 'device' && preferencesService.hasGeminiApiKey)) {
+      if (provider == 'gemini' && preferencesService.hasGeminiApiKey) {
         final ok = await _speakGemini(text, onComplete: onComplete);
         if (ok) return true;
       } else if (provider == 'elevenlabs' && preferencesService.elevenLabsApiKey.trim().isNotEmpty) {
         return await _speakElevenLabs(text, onComplete: onComplete);
       } else if (provider == 'openai' && preferencesService.openAiApiKey.trim().isNotEmpty) {
         return await _speakOpenAi(text, onComplete: onComplete);
-      }
-
-      // If user has Gemini key, try Gemini TTS as last resort
-      if (preferencesService.hasGeminiApiKey) {
-        return await _speakGemini(text, onComplete: onComplete);
       }
     } catch (e) {
       debugPrint('[AiVoiceService] Cloud speech error: $e. Falling back to device voice.');
@@ -154,7 +155,6 @@ class AiVoiceService {
         final code = e.response?.statusCode;
         debugPrint('[AiVoiceService] Gemini TTS model $model failed (HTTP $code): ${e.message}');
         if (code == 401 || code == 403) break;
-        // 404 = model not found, 400 = config not supported — try next
       } catch (e) {
         debugPrint('[AiVoiceService] Gemini TTS model $model error: $e');
       }

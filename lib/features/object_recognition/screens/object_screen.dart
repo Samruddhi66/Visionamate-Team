@@ -103,6 +103,9 @@ class _ObjectRecognitionScreenState extends ConsumerState<ObjectRecognitionScree
   DateTime _lastObjectTouchTime = DateTime.now();
 
   void _handleObjectTouch(Offset localPos, Size size, AppStrings strings) {
+    if (localPos.dy > size.height - 140) {
+      return;
+    }
     final normX = (localPos.dx / size.width).clamp(0.0, 1.0);
     final normY = (localPos.dy / size.height).clamp(0.0, 1.0);
     final lang = strings.locale.languageCode;

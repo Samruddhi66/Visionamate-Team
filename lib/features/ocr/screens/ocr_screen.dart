@@ -82,6 +82,9 @@ class _OcrScreenState extends ConsumerState<OcrScreen> {
   DateTime _lastOcrTouchTime = DateTime.now();
 
   void _handleOcrTouch(Offset localPos, Size size, AppStrings strings) {
+    if (localPos.dy > size.height - 140) {
+      return;
+    }
     final normY = (localPos.dy / size.height).clamp(0.0, 1.0);
     final isMr = strings.locale.languageCode.startsWith('mr');
     final isHi = strings.locale.languageCode.startsWith('hi');

@@ -4,7 +4,6 @@ import '../../../app/localization/app_localizations.dart';
 import '../../../app/providers.dart';
 import '../../../app/theme/accessibility_tokens.dart';
 import '../../../app/theme/app_colors.dart';
-import '../../../core/coordinator/unified_voice_controller.dart';
 import '../../../core/haptics/haptic_patterns.dart';
 import '../../../core/widgets/live_camera_viewport.dart';
 import '../services/obstacle_traffic_service.dart';
@@ -94,6 +93,9 @@ class _ObstacleTrafficScreenState extends ConsumerState<ObstacleTrafficScreen> {
   }
 
   void _handleTouch(Offset localPos, Size screenSize, AppStrings strings) {
+    if (localPos.dy > screenSize.height - 140) {
+      return;
+    }
     final w = screenSize.width;
     final h = screenSize.height;
     final normX = (localPos.dx / w).clamp(0.0, 1.0);

@@ -134,6 +134,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final isMr = lang.startsWith('mr');
     final isHi = lang.startsWith('hi');
 
+    // ONLY provide touch explorer guidance for the upper informational area (header & greeting)
+    // NEVER block or interfere with the 6 feature cards and action controls
+    if (normY > 0.34) {
+      return;
+    }
+
     String zone;
     String feedback;
 
@@ -156,72 +162,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       }
     } else if (normY < 0.18) {
       zone = 'greeting';
-      feedback = '${strings.greetingPrefix}. ${strings.helpPrompt}';
-    } else if (normY < 0.34) {
+      feedback = '. ';
+    } else {
       zone = 'hero_assistant';
       feedback = isMr
           ? 'व्हॉइस असिस्टंट: बोलण्यासाठी किंवा जेमिनीला विचारण्यासाठी टॅप करा.'
           : (isHi
               ? 'वॉइस सहायक: बोलने या जेमिनी से सहायता के लिए टैप करें।'
               : 'Voice Assistant hero card: Tap to speak voice commands or ask questions.');
-    } else if (normY < 0.88) {
-      final isLeft = normX < 0.50;
-      if (normY < 0.52) {
-        if (isLeft) {
-          zone = 'card_navigation';
-          feedback = isMr
-              ? 'नेव्हिगेशन कार्ड: वळण मार्गदर्शन सुरू करण्यासाठी टॅप करा.'
-              : (isHi
-                  ? 'नेविगेशन कार्ड: रास्ता मार्गदर्शन शुरू करने के लिए टैप करें।'
-                  : 'Navigation card: Walking and directional guidance.');
-        } else {
-          zone = 'card_ai_vision';
-          feedback = isMr
-              ? 'एआय व्हिजन कार्ड: थेट दृश्य आणि अडथळे तपासण्यासाठी टॅप करा.'
-              : (isHi
-                  ? 'एआई विज़न कार्ड: वास्तविक दृश्य और बाधा जांच के लिए टैप करें।'
-                  : 'AI Vision card: Real-time scene and obstacle analysis.');
-        }
-      } else if (normY < 0.70) {
-        if (isLeft) {
-          zone = 'card_cash';
-          feedback = isMr
-              ? 'कॅश डिटेक्टर कार्ड: भारतीय रुपया नोटा ओळखण्यासाठी टॅप करा.'
-              : (isHi
-                  ? 'कैश डिटेक्टर कार्ड: भारतीय रुपया नोट पहचानने के लिए टैप करें।'
-                  : 'Cash Detector card: Indian Rupee banknote identification.');
-        } else {
-          zone = 'card_object';
-          feedback = isMr
-              ? 'वस्तू ओळख कार्ड: वस्तू आणि व्यक्ती शोधण्यासाठी टॅप करा.'
-              : (isHi
-                  ? 'वस्तु पहचान कार्ड: वस्तुओं और लोगों को पहचानने के लिए टैप करें।'
-                  : 'Object Recognition card: Identify obstacles, people, and objects.');
-        }
-      } else {
-        if (isLeft) {
-          zone = 'card_traffic';
-          feedback = isMr
-              ? 'अडथळा आणि ट्रॅफिक स्कॅनर: वाहने, सिग्नल, पायऱ्या आणि अडथळे तपासण्यासाठी टॅप करा.'
-              : (isHi
-                  ? 'बाधा और ट्रैफिक स्कैनर: गाड़ियां, सिग्नल, सीढ़ियां और बाधा जांचने के लिए टैप करें।'
-                  : 'Obstacle and Traffic Scanner card: Scan vehicles, pedestrian signals, stairs, and road hazards.');
-        } else {
-          zone = 'card_more';
-          feedback = isMr
-              ? 'अधिक पर्याय कार्ड: मजकूर वाचन, प्रश्नोत्तरे आणि सेटिंग्जसाठी टॅप करा.'
-              : (isHi
-                  ? 'अन्य सुविधाएं कार्ड: टेक्स्ट पढ़ने, प्रश्नोत्तर और सेटिंग्स के लिए टैप करें।'
-                  : 'More features card: OCR reader, image Q&A, and saved places.');
-        }
-      }
-    } else {
-      zone = 'bottom_nav';
-      feedback = isMr
-          ? 'खालील नेव्हिगेशन बार: होम, इतिहास, तातडीची मदत एसओएस, आणि प्रोफाइल.'
-          : (isHi
-              ? 'निचला नेविगेशन बार: होम, इतिहास, आपातकालीन एसओएस, और प्रोफ़ाइल।'
-              : 'Bottom navigation bar: Home, History, Emergency SOS beacon, and Profile.');
     }
 
     final now = DateTime.now();
@@ -271,14 +219,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           onPressed: () => _showMoreMenu(context, strings),
                         ),
 
-                        // App Title Tag
-                        Text(
-                          strings.appTitle,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 19,
+                        // App Title Tag with Logo
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.asset(
+                                'assets/images/logo.png',
+                                width: 28,
+                                height: 28,
+                                fit: BoxFit.cover,
                               ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              strings.appTitle,
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 19,
+                                  ),
+                            ),
+                          ],
                         ),
 
                         // Quick Accessibility Settings Icon

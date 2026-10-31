@@ -91,33 +91,27 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Glowing Concentric VisionMate Eye Logo
+                  // Glowing VisionMate Logo
                   AnimatedBuilder(
                     animation: _animController,
                     builder: (context, child) {
-                      final scale = 1.0 + (_animController.value * 0.06);
+                      final scale = 1.0 + (_animController.value * 0.05);
                       return Transform.scale(
                         scale: scale,
                         child: Container(
-                          width: 120,
-                          height: 120,
+                          width: 140,
+                          height: 140,
                           decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const RadialGradient(
-                              colors: [
-                                Color(0xFF1E2E4E),
-                                Color(0xFF0F172A),
-                              ],
-                            ),
+                            borderRadius: BorderRadius.circular(32),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.primaryCyan.withValues(alpha: 0.35 + (_animController.value * 0.2)),
-                                blurRadius: 28,
+                                color: AppColors.primaryCyan.withValues(alpha: 0.4 + (_animController.value * 0.2)),
+                                blurRadius: 32,
                                 spreadRadius: 4,
                               ),
                               BoxShadow(
-                                color: AppColors.accentViolet.withValues(alpha: 0.25),
-                                blurRadius: 40,
+                                color: AppColors.accentViolet.withValues(alpha: 0.3),
+                                blurRadius: 48,
                                 spreadRadius: 2,
                               ),
                             ],
@@ -126,26 +120,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                               width: 3,
                             ),
                           ),
-                          child: Center(
-                            child: Container(
-                              width: 72,
-                              height: 72,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    AppColors.primaryCyan,
-                                    AppColors.accentViolet,
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.remove_red_eye_rounded,
-                                color: Colors.white,
-                                size: 42,
-                              ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(29),
+                            child: Image.asset(
+                              'assets/images/logo.png',
+                              fit: BoxFit.cover,
                             ),
                           ),
                         ),

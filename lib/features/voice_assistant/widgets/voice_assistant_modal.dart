@@ -318,7 +318,7 @@ class _VoiceAssistantModalState extends ConsumerState<VoiceAssistantModal> {
                             children: [
                               _buildQuickChip('👁️ Describe Scene', () {
                                 Navigator.pop(context);
-                                context.push('/scene-analysis');
+                                context.push('/scene');
                               }),
                               _buildQuickChip('💵 Identify Cash', () {
                                 Navigator.pop(context);

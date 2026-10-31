@@ -104,6 +104,9 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
   DateTime _lastCurrencyTouchTime = DateTime.now();
 
   void _handleScreenTouch(Offset localPos, Size size, AppStrings strings) {
+    if (localPos.dy > size.height - 140) {
+      return;
+    }
     final normX = (localPos.dx / size.width).clamp(0.0, 1.0);
     final normY = (localPos.dy / size.height).clamp(0.0, 1.0);
     final isMr = strings.locale.languageCode.startsWith('mr');

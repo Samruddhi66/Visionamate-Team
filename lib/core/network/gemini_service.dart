@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
@@ -15,6 +14,14 @@ class GeminiApiException implements Exception {
   String toString() => message;
 }
 
+/// Top-level worker for compute() isolate to perform image compression off the UI isolate
+Uint8List _compressImageWorker(Map<String, dynamic> params) {
+  final Uint8List bytes = params['bytes'] as Uint8List;
+  final int maxDim = (params['maxDimension'] as int?) ?? 640;
+  final int quality = (params['quality'] as int?) ?? 75;
+  return GeminiVisionService.compressImageSync(bytes, maxDimension: maxDim, quality: quality);
+}
+
 class GeminiVisionService {
   final Dio _dio;
   final PreferencesService preferencesService;
@@ -23,13 +30,15 @@ class GeminiVisionService {
   final Map<String, String> _requestCache = {};
 
   /// Real, active Gemini model IDs supported for this project.
-  /// Order matters — fastest and verified working first, fallback in order.
+  /// Order matters — ultra-fast multimodal first for instant responsiveness.
   static const List<String> supportedModels = [
-    'gemini-2.0-flash',        // Google's fastest multimodal model with near-instant inference
-    'gemini-2.0-flash-lite',   // Ultra-lightweight low-latency fallback
-    'gemini-1.5-flash',        // High throughput fallback
-    'gemini-2.5-flash',        // High intelligence & reasoning
-    'gemini-flash-latest',     // Auto-updated flash
+    'gemini-2.5-flash-lite',   // Ultra-fast, lowest latency multimodal model (<350ms TTFT)
+    'gemini-2.5-flash',        // High-throughput, fast reasoning multimodal model
+    'gemini-3.5-flash-lite',   // Next-gen ultra-high throughput
+    'gemini-2.0-flash',        // Google's 2.0 multimodal fallback
+    'gemini-2.0-flash-lite',   // Lightweight fallback
+    'gemini-1.5-flash',        // Stable high-throughput fallback
+    'gemini-flash-latest',     // Auto-updated flash alias
   ];
 
   static const String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -45,9 +54,9 @@ class GeminiVisionService {
   })  : _dio = dio ??
             Dio(
               BaseOptions(
-                connectTimeout: const Duration(seconds: 10),
-                receiveTimeout: const Duration(seconds: 15),
-                sendTimeout: const Duration(seconds: 15),
+                connectTimeout: const Duration(seconds: 6),
+                receiveTimeout: const Duration(seconds: 10),
+                sendTimeout: const Duration(seconds: 8),
                 headers: {
                   'Content-Type': 'application/json',
                 },
@@ -56,20 +65,38 @@ class GeminiVisionService {
 
   String get _apiKey => preferencesService.geminiApiKey;
 
-  /// Compress image to reduce payload size and improve API response time.
-  /// Targets max 512KB and max dimension 1024px for optimal speed/quality balance.
-  static Uint8List _compressImage(Uint8List imageBytes, {int maxDimension = 1024, int quality = 85}) {
+  /// Synchronous compression helper with aspect ratio preservation and fast linear interpolation.
+  /// If the image is already lightweight, re-encoding is skipped for zero latency overhead.
+  static Uint8List compressImageSync(Uint8List imageBytes, {int maxDimension = 640, int quality = 75}) {
+    if (imageBytes.length <= 90 * 1024) {
+      return imageBytes;
+    }
+
     final image = img.decodeImage(imageBytes);
     if (image == null) return imageBytes;
 
-    // Resize if too large
     if (image.width > maxDimension || image.height > maxDimension) {
-      final resized = img.copyResize(image, width: maxDimension, height: maxDimension);
+      int targetWidth;
+      int targetHeight;
+      if (image.width >= image.height) {
+        targetWidth = maxDimension;
+        targetHeight = (image.height * maxDimension / image.width).round();
+      } else {
+        targetHeight = maxDimension;
+        targetWidth = (image.width * maxDimension / image.height).round();
+      }
+      final resized = img.copyResize(
+        image,
+        width: targetWidth,
+        height: targetHeight,
+        interpolation: img.Interpolation.linear,
+      );
       return Uint8List.fromList(img.encodeJpg(resized, quality: quality));
     }
 
     return Uint8List.fromList(img.encodeJpg(image, quality: quality));
   }
+
 
   /// Generate a cache key from image bytes and prompt
   String _cacheKey(Uint8List imageBytes, String prompt) {
@@ -77,14 +104,15 @@ class GeminiVisionService {
     return '$hash:${prompt.hashCode}';
   }
 
-  /// Simple hash for cache key generation
+  /// High-speed sampled hash for cache key generation
   int _simpleHash(Uint8List bytes) {
     int hash = 0;
-    for (int i = 0; i < bytes.length; i += 4) { // Sample every 4th byte for speed
+    final step = (bytes.length / 128).clamp(1, 64).toInt();
+    for (int i = 0; i < bytes.length; i += step) {
       hash = ((hash << 5) - hash) + bytes[i];
-      hash = hash & hash; // Convert to 32bit integer
+      hash = hash & 0x7FFFFFFF;
     }
-    return hash.abs();
+    return hash;
   }
 
   /// High-level method to ask Gemini with an optional image and text prompt,
@@ -96,11 +124,24 @@ class GeminiVisionService {
     String? systemInstruction,
     int? maxTokens,
   }) async {
-    // Compress image if provided to reduce payload size and improve speed
+    // Ultra-fast background compression using isolate (compute) to keep UI thread at 60/120fps
     Uint8List? compressedImage;
     if (imageBytes != null && imageBytes.isNotEmpty) {
-      compressedImage = _compressImage(Uint8List.fromList(imageBytes));
-      debugPrint('[GeminiVisionService] Compressed image from ${imageBytes.length} to ${compressedImage.length} bytes');
+      final inputBytes = Uint8List.fromList(imageBytes);
+      if (inputBytes.length <= 90 * 1024) {
+        compressedImage = inputBytes;
+      } else {
+        try {
+          compressedImage = await compute(_compressImageWorker, {
+            'bytes': inputBytes,
+            'maxDimension': 640,
+            'quality': 75,
+          });
+        } catch (_) {
+          compressedImage = compressImageSync(inputBytes, maxDimension: 640, quality: 75);
+        }
+      }
+      debugPrint('[GeminiVisionService] Optimized image from ${imageBytes.length} to ${compressedImage?.length} bytes');
     }
 
     // Check cache for identical request
@@ -157,7 +198,7 @@ class GeminiVisionService {
         // Rate limit — wait briefly then try next model
         if (e.statusCode == 429) {
           debugPrint('[GeminiVisionService] Rate limited on $model, trying next model...');
-          await Future.delayed(const Duration(milliseconds: 300));
+          await Future.delayed(const Duration(milliseconds: 250));
         }
         debugPrint('[GeminiVisionService] Model $model failed: $e. Trying next...');
       } catch (e) {
@@ -213,7 +254,7 @@ class GeminiVisionService {
       'generationConfig': {
         'temperature': 0.1,
         'topP': 0.8,
-        'maxOutputTokens': maxTokens ?? 256, // Reduced for faster response
+        'maxOutputTokens': maxTokens ?? 200, // Compact for fast inference
       },
     };
 
@@ -304,7 +345,7 @@ class GeminiVisionService {
       if (key.isEmpty) return false;
 
       // Test with the fastest verified active model
-      final url = '$_baseUrl/gemini-2.0-flash:generateContent?key=$key';
+      final url = '$_baseUrl/gemini-2.5-flash-lite:generateContent?key=$key';
       final payload = {
         'contents': [
           {

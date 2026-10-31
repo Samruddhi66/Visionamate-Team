@@ -223,7 +223,7 @@ class DefaultObstacleTrafficService implements ObstacleTrafficService {
       final criticalWarning = json['criticalWarning']?.toString();
       final trafficLight = json['trafficLightStatus']?.toString();
       final zebra = json['zebraCrossingVisible'] == true;
-      final summary = json['spokenSummary']?.toString() ?? (isMr ? 'परिसर स्कॅन पूर्ण.' : 'Surroundings scanned.');
+      final summary = json['spokenSummary']?.toString() ?? (isMr ? 'परिसर स्कॅन पूर्ण.' : (isHi ? 'आसपास का स्कैन पूरा हुआ।' : 'Surroundings scanned.'));
 
       final items = <ObstacleTrafficItem>[];
       final rawItems = json['items'] as List?;

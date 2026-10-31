@@ -2,26 +2,12 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../../../core/network/gemini_service.dart';
 import '../../../app/theme/app_colors.dart';
-import '../../../core/audio/tts_service.dart';
 import 'dart:typed_data';
-import 'package:image/image.dart' as img;
-import 'dart:convert';
-import 'dart:math' as math;
-import 'dart:io';
-import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../../core/storage/preferences_service.dart';
 
-/// Helper to compress image before sending to API
+/// Fast image compressor delegating to optimized GeminiVisionService background isolate
 class ImageCompressor {
-  static Uint8List compress(Uint8List bytes, {int maxDimension = 1024, int quality = 85}) {
-    final image = img.decodeImage(bytes);
-    if (image == null) return bytes;
-    if (image.width > maxDimension || image.height > maxDimension) {
-      final resized = img.copyResize(image, width: maxDimension, height: maxDimension);
-      return Uint8List.fromList(img.encodeJpg(resized, quality: quality));
-    }
-    return Uint8List.fromList(img.encodeJpg(image, quality: quality));
+  static Uint8List compress(Uint8List bytes, {int maxDimension = 640, int quality = 75}) {
+    return GeminiVisionService.compressImageSync(bytes, maxDimension: maxDimension, quality: quality);
   }
 }
 
@@ -100,11 +86,6 @@ class DefaultSceneUnderstandingService implements SceneUnderstandingService {
         );
       }
 
-      // Compress image to reduce payload size and improve API response time
-      final compressedBytes = ImageCompressor.compress(Uint8List.fromList(bytes), maxDimension: 1024, quality: 85);
-      debugPrint('[SceneUnderstandingService] Image compressed: ${bytes.length} -> ${compressedBytes.length} bytes');
-      debugPrint('[SceneUnderstandingService] Image compressed: ${bytes.length} -> ${compressedBytes.length} bytes');
-
       if (geminiService != null && geminiService!.preferencesService.hasGeminiApiKey) {
         String langInstruction = 'Describe in clear, natural spoken English.';
         if (languageCode == 'mr') {
@@ -133,7 +114,7 @@ class DefaultSceneUnderstandingService implements SceneUnderstandingService {
         try {
           final response = await geminiService!.askGemini(
             prompt: prompt,
-            imageBytes: compressedBytes,
+            imageBytes: bytes, // GeminiVisionService handles isolate-based fast compression directly
             mimeType: 'image/jpeg',
             maxTokens: 256,
           );
@@ -158,44 +139,43 @@ class DefaultSceneUnderstandingService implements SceneUnderstandingService {
 
               final segments = trimmed.split('|').map((s) => s.trim()).toList();
               final label = segments.isNotEmpty ? segments[0] : 'Object';
-              final distance = segments.length > 1 ? segments[1] : '1.5 m';
-              final posStr = segments.length > 2 ? segments[2].toLowerCase() : '';
+              final dist = segments.length > 1 ? segments[1] : 'Ahead';
+              final pos = segments.length > 2 ? segments[2].toLowerCase() : 'center';
 
-              elementsList.add(label);
+              double x = 0.5;
+              if (pos.contains('left')) x = 0.22;
+              if (pos.contains('right')) x = 0.78;
 
-              double x = 0.15;
-              double y = 0.25;
-              Color color = AppColors.primaryCyan;
+              double y = 0.45 + (index * 0.1).clamp(0.0, 0.35);
 
-              if (posStr.contains('right') || index == 1) {
-                x = 0.60;
-                y = 0.20;
-                color = AppColors.successGreen;
-              } else if (posStr.contains('center') || posStr.contains('ahead') || index == 2) {
-                x = 0.35;
-                y = 0.50;
-                color = AppColors.warningAmber;
-              }
+              final palette = [
+                AppColors.primaryCyan,
+                const Color(0xFFF59E0B),
+                const Color(0xFF10B981),
+                const Color(0xFF8B5CF6),
+                const Color(0xFFEC4899),
+                const Color(0xFF3B82F6),
+              ];
 
               detectionsList.add(
                 ArDetectedObject(
                   label: label,
-                  distance: distance,
+                  distance: dist,
                   x: x,
                   y: y,
-                  width: 140,
-                  height: 100,
-                  color: color,
+                  width: 0.38,
+                  height: 0.18,
+                  color: palette[index % palette.length],
                 ),
               );
+              elementsList.add(label);
               index++;
-              if (index >= 3) break;
             }
-          }
-
-          if (elementsList.isEmpty) {
-            final lower = cleanedText.toLowerCase();
+          } else {
+            // Heuristic keyword extraction fallback
+            final lower = spokenDescription.toLowerCase();
             for (final item in [
+              'room',
               'door',
               'hallway',
               'chair',
