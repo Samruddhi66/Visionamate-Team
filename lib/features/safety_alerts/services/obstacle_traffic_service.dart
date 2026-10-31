@@ -306,28 +306,18 @@ class DefaultObstacleTrafficService implements ObstacleTrafficService {
     final isHi = languageCode.startsWith('hi');
 
     final summary = isMr
-        ? 'कॅमेरा दृश्य सक्रिय. रस्ता मोकळा दिसत आहे. तपशीलवार स्कॅनिंगसाठी स्क्रीनवर कुठेही स्पर्श करा.'
+        ? 'इंटरनेट कनेक्शन नाही. रिअल-टाइम अडथळा तपासणी ऑफलाइन आहे. कृपया चालताना काळजी घ्या.'
         : (isHi
-            ? 'कैमरा दृश्य सक्रिय। रास्ता साफ दिख रहा है। विस्तृत स्कैनिंग के लिए स्क्रीन पर कहीं भी स्पर्श करें।'
-            : 'Live scanner active. Pathway appears clear ahead. Touch anywhere on screen to explore surroundings.');
+            ? 'इंटरनेट कनेक्शन नहीं है। रीयल-टाइम बाधा जांच ऑफलाइन है। कृपया चलते समय सावधानी बरतें।'
+            : 'No internet connection. Real-time obstacle detection is offline. Please proceed with caution.');
 
     return ObstacleTrafficScanResult(
       spokenSummary: summary,
-      items: [
-        ObstacleTrafficItem(
-          label: isMr ? 'चालण्याचा मार्ग' : (isHi ? 'पैदल रास्ता' : 'Walking Path'),
-          category: HazardCategory.surface,
-          severity: 'low',
-          direction: SpatialDirection.centerAhead,
-          clockPosition: "12 o'clock",
-          distanceMeters: 2.0,
-          x: 0.50,
-          y: 0.70,
-          spokenAlert: isMr ? 'थेट समोर चालण्याचा मार्ग मोकळा आहे' : 'Walking path clear directly ahead',
-          highlightColor: AppColors.successGreen,
-        ),
-      ],
-      isSafeToWalk: true,
+      items: const [],
+      isSafeToWalk: false,
+      criticalWarning: isMr
+          ? 'ऑफलाइन मोड: अडथळे शोधणे मर्यादित आहे'
+          : (isHi ? 'ऑफलाइन मोड: बाधा पहचान सीमित है' : 'Offline Mode: Hazard detection limited'),
     );
   }
 }

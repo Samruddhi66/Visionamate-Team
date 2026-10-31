@@ -8,6 +8,7 @@
 
     <application
         android:label="VisionMate"
+        android:allowBackup="false"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -50,6 +51,14 @@
         </intent>
         <intent>
             <action android:name="android.speech.RecognitionService" />
+        </intent>
+            <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="sms" />
         </intent>
     </queries>
 </manifest>

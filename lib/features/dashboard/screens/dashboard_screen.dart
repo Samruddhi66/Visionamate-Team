@@ -134,12 +134,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final isMr = lang.startsWith('mr');
     final isHi = lang.startsWith('hi');
 
-    // ONLY provide touch explorer guidance for the upper informational area (header & greeting)
-    // NEVER block or interfere with the 6 feature cards and action controls
-    if (normY > 0.34) {
-      return;
-    }
-
     String zone;
     String feedback;
 
@@ -160,16 +154,40 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ? 'VisionMate 2.0. स्वावलंबी जगा.'
             : (isHi ? 'VisionMate 2.0. स्वतंत्र जीवन जिएं।' : 'VisionMate 2.0. See beyond boundaries.');
       }
-    } else if (normY < 0.18) {
+    } else if (normY < 0.16) {
       zone = 'greeting';
-      feedback = '. ';
-    } else {
+      feedback = isMr ? 'नमस्ते. आज तुम्हाला कशात मदत करू?' : (isHi ? 'नमस्ते। आज आपको किसमें सहायता करूं?' : 'Hello. How can I help you today?');
+    } else if (normY < 0.32) {
       zone = 'hero_assistant';
       feedback = isMr
           ? 'व्हॉइस असिस्टंट: बोलण्यासाठी किंवा जेमिनीला विचारण्यासाठी टॅप करा.'
           : (isHi
               ? 'वॉइस सहायक: बोलने या जेमिनी से सहायता के लिए टैप करें।'
               : 'Voice Assistant hero card: Tap to speak voice commands or ask questions.');
+    } else if (normY < 0.54) {
+      if (normX < 0.5) {
+        zone = 'card_nav';
+        feedback = isMr ? 'नेव्हिगेशन: पायी चालण्याचे मार्गदर्शन मिळवण्यासाठी टॅप करा.' : (isHi ? 'नेविगेशन: पैदल मार्ग दर्शन के लिए टैप करें।' : 'Navigation: Tap for pedestrian walking guidance.');
+      } else {
+        zone = 'card_vision';
+        feedback = isMr ? 'एआय व्हिजन: परिसर विश्लेषण आणि अडथळे तपासण्यासाठी टॅप करा.' : (isHi ? 'एआई विजन: परिसर और बाधा विश्लेषण के लिए टैप करें।' : 'AI Vision: Tap for real-time surroundings and scene analysis.');
+      }
+    } else if (normY < 0.74) {
+      if (normX < 0.5) {
+        zone = 'card_cash';
+        feedback = isMr ? 'चलन ओळख: भारतीय नोटा ओळखण्यासाठी टॅप करा.' : (isHi ? 'कैश डिटेक्टर: भारतीय नोट पहचानने के लिए टैप करें।' : 'Cash Detector: Tap to identify Indian rupee banknotes.');
+      } else {
+        zone = 'card_objects';
+        feedback = isMr ? 'वस्तू शोधणे: आसपासच्या वस्तू ओळखण्यासाठी टॅप करा.' : (isHi ? 'वस्तु पहचान: आसपास की वस्तुएं खोजने के लिए टैप करें।' : 'Object Recognition: Tap to identify objects around you.');
+      }
+    } else {
+      if (normX < 0.5) {
+        zone = 'card_obstacles';
+        feedback = isMr ? 'अडथळे आणि ट्रॅफिक स्कॅनर: रस्ता सुरक्षिततेसाठी टॅप करा.' : (isHi ? 'बाधा और ट्रैफिक स्कैनर: सुरक्षित चलने के लिए टैप करें।' : 'Obstacle & Traffic Scanner: Tap for walking hazard safety.');
+      } else {
+        zone = 'card_emergency';
+        feedback = isMr ? 'इमर्जन्सी एसओएस: तात्काळ मदतीसाठी टॅप करा.' : (isHi ? 'इमरजेंसी एसओएस: आपातकालीन सहायता के लिए टैप करें।' : 'Emergency SOS: Tap to call and send location to contacts.');
+      }
     }
 
     final now = DateTime.now();

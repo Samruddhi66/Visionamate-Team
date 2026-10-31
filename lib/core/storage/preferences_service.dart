@@ -1,6 +1,30 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PreferencesService {
+  static const String _vaultSalt = 'VM_SecVault_2026_Key';
+
+  static String _secureEncrypt(String plain) {
+    if (plain.isEmpty) return '';
+    final bytes = utf8.encode(plain);
+    final salt = utf8.encode(_vaultSalt);
+    final enc = List<int>.generate(bytes.length, (i) => bytes[i] ^ salt[i % salt.length]);
+    return 'vm_enc_${base64Encode(enc)}';
+  }
+
+  static String _secureDecrypt(String? encoded) {
+    if (encoded == null || encoded.isEmpty) return '';
+    if (!encoded.startsWith('vm_enc_')) return encoded.trim(); // Backward compatible with plain keys
+    try {
+      final raw = base64Decode(encoded.substring(7));
+      final salt = utf8.encode(_vaultSalt);
+      final dec = List<int>.generate(raw.length, (i) => raw[i] ^ salt[i % salt.length]);
+      return utf8.decode(dec).trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
   static const String _keyThemeMode = 'vm_theme_mode';
   static const String _keyLanguage = 'vm_language';
   static const String _keyHapticsEnabled = 'vm_haptics_enabled';
@@ -29,18 +53,15 @@ class PreferencesService {
   }
 
   String get geminiApiKey {
-    final key = _prefs.getString(_keyGeminiApiKey);
-    if (key != null && key.trim().isNotEmpty) {
-      return key.trim();
-    }
-    if (defaultGeminiApiKey.trim().isNotEmpty) {
-      return defaultGeminiApiKey;
-    }
+    final raw = _prefs.getString(_keyGeminiApiKey);
+    final decrypted = _secureDecrypt(raw);
+    if (decrypted.isNotEmpty) return decrypted;
+    if (defaultGeminiApiKey.trim().isNotEmpty) return defaultGeminiApiKey;
     return '';
   }
 
   bool get hasGeminiApiKey => geminiApiKey.trim().isNotEmpty;
-  Future<void> setGeminiApiKey(String key) => _prefs.setString(_keyGeminiApiKey, key.trim());
+  Future<void> setGeminiApiKey(String key) => _prefs.setString(_keyGeminiApiKey, _secureEncrypt(key.trim()));
 
   String get themeMode => _prefs.getString(_keyThemeMode) ?? 'dark';
   Future<void> setThemeMode(String mode) => _prefs.setString(_keyThemeMode, mode);
@@ -70,20 +91,20 @@ class PreferencesService {
   }
   Future<void> setAiVoiceProvider(String provider) => _prefs.setString(_keyAiVoiceProvider, provider);
 
-  String get elevenLabsApiKey => _prefs.getString(_keyElevenLabsApiKey) ?? '';
-  Future<void> setElevenLabsApiKey(String key) => _prefs.setString(_keyElevenLabsApiKey, key);
+  String get elevenLabsApiKey => _secureDecrypt(_prefs.getString(_keyElevenLabsApiKey));
+  Future<void> setElevenLabsApiKey(String key) => _prefs.setString(_keyElevenLabsApiKey, _secureEncrypt(key));
 
   String get elevenLabsVoiceId => _prefs.getString(_keyElevenLabsVoiceId) ?? '21m00Tcm4TlvDq8ikWAM';
   Future<void> setElevenLabsVoiceId(String id) => _prefs.setString(_keyElevenLabsVoiceId, id);
 
-  String get openAiApiKey => _prefs.getString(_keyOpenAiApiKey) ?? '';
-  Future<void> setOpenAiApiKey(String key) => _prefs.setString(_keyOpenAiApiKey, key);
+  String get openAiApiKey => _secureDecrypt(_prefs.getString(_keyOpenAiApiKey));
+  Future<void> setOpenAiApiKey(String key) => _prefs.setString(_keyOpenAiApiKey, _secureEncrypt(key));
 
   String get openAiVoice => _prefs.getString(_keyOpenAiVoice) ?? 'nova';
   Future<void> setOpenAiVoice(String voice) => _prefs.setString(_keyOpenAiVoice, voice);
 
   String? get emergencyContactName => _prefs.getString(_keyEmergencyContactName);
-  String? get emergencyContactPhone => _prefs.getString(_keyEmergencyContactPhone);
+  String? get emergencyContactPhone { final v = _secureDecrypt(_prefs.getString(_keyEmergencyContactPhone)); return v.isEmpty ? null : v; }
   Future<void> setEmergencyContact(String name, String phone) async {
     await _prefs.setString(_keyEmergencyContactName, name);
     await _prefs.setString(_keyEmergencyContactPhone, phone);

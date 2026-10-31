@@ -3,8 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:share_plus/share_plus.dart' as share_plus;
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../../../core/storage/preferences_service.dart';
 import '../../../core/storage/history_repository.dart';
 import '../../../core/audio/tts_service.dart';
@@ -62,20 +60,7 @@ class EmergencyService {
 
   /// Get human-readable address from coordinates
   Future<String> getAddressFromLocation(Position position) async {
-    try {
-      final url =
-          'https://maps.googleapis.com/maps/api/geocode/json?latlng=${position.latitude},${position.longitude}&key=${prefs.geminiApiKey}';
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['results'] != null && data['results'].isNotEmpty) {
-          return data['results'][0]['formatted_address'] ?? 'Unknown location';
-        }
-      }
-      return '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
-    } catch (e) {
-      return '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
-    }
+    return 'Lat ${position.latitude.toStringAsFixed(5)}, Long ${position.longitude.toStringAsFixed(5)}';
   }
 
   /// Make a real phone call to emergency contact
@@ -114,14 +99,14 @@ class EmergencyService {
       return false;
     }
 
-    final address = await getAddressFromLocation(position);
+    final mapsUrl = 'https://maps.google.com/?q=${position.latitude},${position.longitude}';
     final message =
-        'EMERGENCY SOS from VisionMate user!\n'
-        'Location: $address\n'
-        'Coordinates: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}\n'
-        'Accuracy: ${position.accuracy.toInt()} meters\n'
-        'Time: ${DateTime.now().toIso8601String()}\n'
-        'Please help immediately!';
+        '🆘 EMERGENCY SOS from VisionMate user!\n'
+        'Live GPS Map: $mapsUrl\n'
+        'Coordinates: ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}\n'
+        'Accuracy: ±${position.accuracy.toInt()}m\n'
+        'Time: ${DateTime.now().toLocal()}\n'
+        'Please provide immediate assistance!';
 
     final cleanPhone = phone.replaceAll(RegExp(r'[^\d+]'), '');
     final url = 'sms:$cleanPhone?body=${Uri.encodeComponent(message)}';

@@ -37,6 +37,9 @@ class AccessibleFeatureCard extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
+          onTapDown: (_) {
+            hapticService?.trigger(HapticPattern.selectionClick);
+          },
           onTap: () {
             hapticService?.trigger(
               isEmergency ? HapticPattern.emergencyStatus : HapticPattern.lightTap,

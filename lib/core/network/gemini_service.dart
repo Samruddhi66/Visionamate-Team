@@ -231,7 +231,7 @@ class GeminiVisionService {
       );
     }
 
-    final url = '$_baseUrl/$model:generateContent?key=$key';
+    final url = '$_baseUrl/$model:generateContent';
 
     final parts = <Map<String, dynamic>>[];
     parts.add({'text': prompt});
@@ -345,7 +345,7 @@ class GeminiVisionService {
       if (key.isEmpty) return false;
 
       // Test with the fastest verified active model
-      final url = '$_baseUrl/gemini-2.5-flash-lite:generateContent?key=$key';
+      final url = '$_baseUrl/gemini-2.5-flash-lite:generateContent';
       final payload = {
         'contents': [
           {
