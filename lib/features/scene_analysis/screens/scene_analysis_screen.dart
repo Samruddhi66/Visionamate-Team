@@ -69,42 +69,7 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
     final x = localPos.dx;
     final y = localPos.dy;
 
-    // 1. Bottom 3 Control Buttons (Shutter, Mic, Speaker)
-    if (y > h - 110) {
-      if (x < w * 0.35) {
-        return const TouchFeedbackInfo(
-          zone: 'Capture Button',
-          description: 'Camera capture button. Tap to scan scene.',
-          haptic: HapticPattern.buttonTap,
-        );
-      } else if (x > w * 0.65) {
-        return const TouchFeedbackInfo(
-          zone: 'Listen Button',
-          description: 'Listen button. Tap to hear scene description.',
-          haptic: HapticPattern.selectionClick,
-        );
-      } else {
-        return const TouchFeedbackInfo(
-          zone: 'Microphone Button',
-          description: 'Voice assistant microphone. Tap to speak.',
-          haptic: HapticPattern.listeningStarted,
-        );
-      }
-    }
-
-    // 2. Floating AI Analysis Card
-    if (y > h - 230) {
-      final desc = _lastDescription != null
-          ? 'AI Analysis: $_lastDescription'
-          : 'AI Analysis Card. Camera is scanning your surroundings.';
-      return TouchFeedbackInfo(
-        zone: 'AI Analysis Card',
-        description: desc,
-        haptic: HapticPattern.selectionClick,
-      );
-    }
-
-    // 3. Camera Viewport Spatial Sectors (Explore by Touch)
+    // Camera Viewport Spatial Sectors (Explore by Touch on Viewfinder)
     final camHeight = (h - 260).clamp(100.0, 2000.0);
     final normX = (x / w).clamp(0.0, 1.0);
     final normY = (y / camHeight).clamp(0.0, 1.0);
@@ -193,8 +158,8 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
   }
 
   void _handlePointerEvent(PointerEvent event, Size screenSize) {
-    if (event.localPosition.dy > screenSize.height - 180) {
-      // Exclude bottom action buttons area from explore-by-touch speech interruptions
+    // Exclude bottom action buttons and floating card area from explore-by-touch interruptions
+    if (event.localPosition.dy > screenSize.height * 0.52) {
       return;
     }
     final info = _evaluateTouch(event.localPosition, screenSize);
@@ -237,7 +202,7 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
 
     await haptics.trigger(HapticPattern.processingStarted);
     if (!_isContinuousScan) {
-      await voice.speak(strings.analyzingSurroundings);
+      voice.speak(strings.analyzingSurroundings);
     }
 
     final frame = await cameraService.takePicture();
@@ -280,7 +245,7 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
 
     await haptics.trigger(HapticPattern.actionSuccess);
     if (!_isContinuousScan || isNewDesc) {
-      await voice.speak(result.descriptionText);
+      await voice.speak(result.descriptionText, interrupt: true);
     }
   }
 
@@ -776,13 +741,25 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
                 left: 16,
                 right: 16,
                 bottom: 20,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Floating AI Analysis Card
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {},
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Floating AI Analysis Card (Tap to hear full description)
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          haptics.trigger(HapticPattern.selectionClick);
+                          final text = (_lastDescription != null && _lastDescription!.isNotEmpty)
+                              ? _lastDescription!
+                              : strings.analyzingSurroundings;
+                          voice.speak(text, interrupt: true);
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: AppColors.surfaceDark.withValues(alpha: 0.92),
                         borderRadius: BorderRadius.circular(AccessibilityTokens.radiusL),
@@ -885,6 +862,7 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
                         ],
                       ),
                     ),
+                  ),
 
                     const SizedBox(height: 16),
 
@@ -896,23 +874,32 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
                         Semantics(
                           button: true,
                           label: strings.capture,
-                          child: InkWell(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
                             onTap: _isAnalyzing
                                 ? null
                                 : () {
                                     haptics.trigger(HapticPattern.buttonTap);
                                     _captureAndAnalyze();
                                   },
-                            borderRadius: BorderRadius.circular(32),
-                            child: Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppColors.cardDark,
-                                border: Border.all(color: AppColors.cardBorderDark, width: 1.5),
+                            child: InkWell(
+                              onTap: _isAnalyzing
+                                  ? null
+                                  : () {
+                                      haptics.trigger(HapticPattern.buttonTap);
+                                      _captureAndAnalyze();
+                                    },
+                              borderRadius: BorderRadius.circular(34),
+                              child: Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.cardDark,
+                                  border: Border.all(color: AppColors.cardBorderDark, width: 1.5),
+                                ),
+                                child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 30),
                               ),
-                              child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 28),
                             ),
                           ),
                         ),
@@ -921,29 +908,36 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
                         Semantics(
                           button: true,
                           label: strings.tapToSpeak,
-                          child: InkWell(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
                             onTap: () {
                               haptics.trigger(HapticPattern.listeningStarted);
                               VoiceAssistantModal.show(context);
                             },
-                            borderRadius: BorderRadius.circular(40),
-                            child: Container(
-                              width: 76,
-                              height: 76,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: const RadialGradient(
-                                  colors: [Color(0xFF00E5FF), Color(0xFF00B0FF)],
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
-                                    blurRadius: 20,
-                                    spreadRadius: 2,
+                            child: InkWell(
+                              onTap: () {
+                                haptics.trigger(HapticPattern.listeningStarted);
+                                VoiceAssistantModal.show(context);
+                              },
+                              borderRadius: BorderRadius.circular(42),
+                              child: Container(
+                                width: 78,
+                                height: 78,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: const RadialGradient(
+                                    colors: [Color(0xFF00E5FF), Color(0xFF00B0FF)],
                                   ),
-                                ],
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
+                                      blurRadius: 20,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(Icons.mic_rounded, color: Colors.white, size: 38),
                               ),
-                              child: const Icon(Icons.mic_rounded, color: Colors.white, size: 36),
                             ),
                           ),
                         ),
@@ -952,25 +946,34 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
                         Semantics(
                           button: true,
                           label: strings.listen,
-                          child: InkWell(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
                             onTap: () {
                               haptics.trigger(HapticPattern.selectionClick);
-                              if (_lastDescription != null && _lastDescription!.isNotEmpty) {
-                                voice.speak(_lastDescription!);
-                              } else {
-                                voice.speak(strings.analyzingSurroundings);
-                              }
+                              final textToSpeak = (_lastDescription != null && _lastDescription!.isNotEmpty)
+                                  ? _lastDescription!
+                                  : strings.analyzingSurroundings;
+                              voice.speak(textToSpeak, interrupt: true);
                             },
-                            borderRadius: BorderRadius.circular(32),
-                            child: Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppColors.cardDark,
-                                border: Border.all(color: AppColors.cardBorderDark, width: 1.5),
+                            child: InkWell(
+                              onTap: () {
+                                haptics.trigger(HapticPattern.selectionClick);
+                                final textToSpeak = (_lastDescription != null && _lastDescription!.isNotEmpty)
+                                    ? _lastDescription!
+                                    : strings.analyzingSurroundings;
+                                voice.speak(textToSpeak, interrupt: true);
+                              },
+                              borderRadius: BorderRadius.circular(34),
+                              child: Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.cardDark,
+                                  border: Border.all(color: AppColors.cardBorderDark, width: 1.5),
+                                ),
+                                child: const Icon(Icons.volume_up_rounded, color: Colors.white, size: 30),
                               ),
-                              child: const Icon(Icons.volume_up_rounded, color: Colors.white, size: 28),
                             ),
                           ),
                         ),
@@ -979,6 +982,7 @@ class _SceneAnalysisScreenState extends ConsumerState<SceneAnalysisScreen>
                   ],
                 ),
               ),
+            ),
             ],
           ),
         ),

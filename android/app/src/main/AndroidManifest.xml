@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
-        android:label="VisionMate 2.0"
+        android:label="VisionMate"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

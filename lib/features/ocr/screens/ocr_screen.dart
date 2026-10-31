@@ -92,26 +92,22 @@ class _OcrScreenState extends ConsumerState<OcrScreen> {
     String zone;
     String feedback;
 
-    if (normY < 0.55) {
+    if (normY >= 0.70 || localPos.dy > size.height - 140) {
+      return;
+    }
+    if (normY < 0.45) {
       zone = 'viewfinder';
       feedback = isMr
           ? 'कॅमेरा मजकूर दृश्य. वाचण्यासाठी कागदपत्र किंवा फलक समोर धरा.'
           : (isHi
               ? 'कैमरा टेक्स्ट दृश्य। पढ़ने के लिए दस्तावेज़ या बोर्ड सामने रखें।'
               : 'Camera document reader. Align document or sign to read.');
-    } else if (normY < 0.82) {
+    } else {
       zone = 'text_display';
       final hasText = _extractedText != null && _extractedText!.isNotEmpty;
       feedback = hasText
           ? (isMr ? 'ओळखलेला मजकूर: $_extractedText' : (isHi ? 'पहचाना गया टेक्स्ट: $_extractedText' : 'Recognized text: $_extractedText'))
           : (isMr ? 'मजकूर डिस्प्ले क्षेत्र. अजून कोणताही मजकूर वाचलेला नाही.' : (isHi ? 'टेक्स्ट डिस्प्ले क्षेत्र। अभी कोई टेक्स्ट नहीं पढ़ा गया।' : 'Recognized text area. No text scanned yet.'));
-    } else {
-      zone = 'scan_button';
-      feedback = isMr
-          ? 'स्कॅन आणि मजकूर वाचा बटण. वाचण्यासाठी दोनदा टॅप करा.'
-          : (isHi
-              ? 'स्कैन और पढ़ें बटन। पढ़ने के लिए दो बार टैप करें।'
-              : 'Scan and read text button. Double tap to capture.');
     }
 
     final now = DateTime.now();

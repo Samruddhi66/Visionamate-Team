@@ -172,8 +172,8 @@ class UnifiedVoiceController extends ChangeNotifier {
       await stopSpeaking();
     }
 
-    // Try realistic Cloud AI Voice API if configured
-    if (aiVoiceService != null && aiVoiceService!.isConfigured) {
+    // Try realistic Cloud AI Voice API on web if configured
+    if (kIsWeb && aiVoiceService != null && aiVoiceService!.isConfigured) {
       _updateState(VoiceSessionState.speaking);
       final played = await aiVoiceService!.speakWithAiVoice(
         text,

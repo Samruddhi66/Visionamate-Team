@@ -66,8 +66,6 @@ class PreferencesService {
   String get aiVoiceProvider {
     final saved = _prefs.getString(_keyAiVoiceProvider);
     if (saved != null && saved.isNotEmpty) return saved;
-    // Auto-enable Gemini voice if API key is configured
-    if (hasGeminiApiKey) return 'gemini';
     return 'device';
   }
   Future<void> setAiVoiceProvider(String provider) => _prefs.setString(_keyAiVoiceProvider, provider);

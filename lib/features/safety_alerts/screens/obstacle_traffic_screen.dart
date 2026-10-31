@@ -93,7 +93,7 @@ class _ObstacleTrafficScreenState extends ConsumerState<ObstacleTrafficScreen> {
   }
 
   void _handleTouch(Offset localPos, Size screenSize, AppStrings strings) {
-    if (localPos.dy > screenSize.height - 140) {
+    if (localPos.dy > screenSize.height - 140 || (localPos.dy / screenSize.height) > 0.65) {
       return;
     }
     final w = screenSize.width;

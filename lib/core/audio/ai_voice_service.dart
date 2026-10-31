@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
@@ -26,6 +27,10 @@ class AiVoiceService {
   final Map<String, String> _audioCache = {};
 
   bool get isConfigured {
+    // Cloud AI Voice audio playback from dataUri is only implemented for Web HTML5 Audio.
+    // On native mobile (Android/iOS), FlutterTts provides 100% reliable zero-latency on-device speech.
+    if (!kIsWeb) return false;
+
     final provider = preferencesService.aiVoiceProvider;
     if (provider == 'gemini') {
       return preferencesService.hasGeminiApiKey;
@@ -34,7 +39,6 @@ class AiVoiceService {
     } else if (provider == 'openai') {
       return preferencesService.openAiApiKey.trim().isNotEmpty;
     }
-    // 'device' is local TTS, no cloud AI voice needed
     return false;
   }
 
